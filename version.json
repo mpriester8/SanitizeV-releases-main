@@ -1,5 +1,5 @@
 {
-  "version": "1.1.3",
-  "download_url": "https://github.com/mpriester8/SanitizeV-releases/releases/download/1.1.3/Sanitize.V.exe",
-  "release_notes": "- Testing auto-update feature\n- Version 1.1.3 test release"
+  "version": "1.1.4",
+  "download_url": "https://github.com/mpriester8/SanitizeV-releases-main/releases/download/1.1.4/Sanitize.V.exe",
+  "release_notes": "- NEW: Custom Graphics Profiles - Save and apply your configurations\n- NEW: Scheduled Cache Clearing - Auto-clear on startup or schedule\n- Enhanced Graphics Editor with integrated profiles\n- Streamlined interface with focused features\n- Improved custom input dialogs"
 }

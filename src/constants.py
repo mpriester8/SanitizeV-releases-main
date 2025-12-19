@@ -4,7 +4,7 @@ Constants and Schema definitions for Sanitize V.
 
 import os
 
-VERSION = "1.1.2"
+VERSION = "1.1.4"
 
 # Defined Settings Schema for Graphics Editor
 SETTINGS_SCHEMA = {

@@ -5,7 +5,7 @@ Entry point for Sanitize V application.
 import tkinter as tk
 from tkinter import messagebox
 from gui import FileMoverApp
-from constants import VERSION
+from constants import VERSION, DEFAULT_SOURCE_DIR
 from update_manager import UpdateManager
 
 
@@ -20,6 +20,19 @@ def main():
 
     root = tk.Tk()
     app = FileMoverApp(root)
+    
+    # Check for auto-clear on startup
+    def check_auto_clear():
+        """Check if cache should be auto-cleared on startup."""
+        from cache_scheduler import check_and_auto_clear
+        def log_callback(msg):
+            print(msg)
+        
+        # Run auto-clear if enabled
+        check_and_auto_clear(DEFAULT_SOURCE_DIR, log_callback)
+    
+    # Schedule auto-clear check after UI is initialized
+    root.after(1000, check_auto_clear)
     
     # Enable dark title bar on Windows 11/10 when in dark mode
     def set_dark_title_bar():

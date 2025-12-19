@@ -1,4 +1,4 @@
-# Sanitize V v1.1.2
+# Sanitize V v1.1.4
 
 Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, configuration files, and cache. It allows users to easily toggle mods, swap graphics configurations, edit settings via a GUI, and clear cache files. The application automatically checks for updates and notifies you when new versions are available, and features a customizable dark mode theme.
 
@@ -8,29 +8,28 @@ Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, co
 - **Mod Management**: Easily move `mods` and `plugins` folders from your FiveM application data to a backup directory ("Sanitize") and restore them back ("Restore").
 - **Backup Location**: Customize where your mods and settings are stored when disabled.
 
-### 2. XML Swap
-- **Config Management**: Swap your active `gta5_settings.xml` with different preset files.
-- **Auto-Backup**: When sanitizing, the current settings file is moved to the backup folder with a custom label (e.g., `_Original`).
-- **Safe Restore**: Restore specific configuration files from your backup folder.
-
-### 3. Graphics Editor
+### 2. Graphics Editor
 - **GUI Editor**: Edit `gta5_settings.xml` without touching raw XML code.
+- **Custom Profiles**: Save your current graphics settings as named profiles and apply them anytime.
+- **Profile Management**: Create, apply, and delete custom graphics profiles directly in the editor.
 - **Smart Controls**: Uses Dropdowns for quality settings (Normal, High, Ultra) and Sliders for distance/density settings.
 - **Schema Validation**: Only allows valid values for specific settings (e.g., Shadow Quality, Tessellation, MSAA).
 - **Auto-Logic**: Automatically handles dependent settings (e.g., enabling `Reflection MipBlur` only when Reflection Quality is Very High/Ultra).
 - **Auto-Load**: Automatically loads your current settings on startup.
 
-### 4. Cache Maintenance
+### 3. Cache Maintenance
 - **One-Click Cleaning**: Clears `cache`, `server-cache`, and `server-cache-priv` folders from the FiveM data directory.
+- **Scheduled Auto-Clear**: Configure cache to clear automatically on app startup or at regular intervals.
+- **Smart Scheduling**: Set cache to auto-clear every N days (1-30 days).
 - **History**: Tracks and displays the last time the cache was cleared.
 
-### 5. Auto-Update System
+### 4. Auto-Update System
 - **Automatic Version Checking**: The application automatically checks for updates when you launch it.
 - **Background Downloads**: Updates are downloaded silently in the background without interrupting your workflow.
 - **One-Click Installation**: When an update is available, simply click "Yes" in the notification dialog to download and install the latest version.
 - **No Source Files Required**: Users only need the executable file from releases—the update system handles everything automatically.
 
-### 6. Dark Mode
+### 5. Dark Mode
 - **Theme Toggle**: Switch between light and dark modes with a single click using the theme button.
 - **Persistent Settings**: Your theme preference is automatically saved and restored on next launch.
 - **Eye Comfort**: Dark mode reduces eye strain in low-light environments with a carefully designed color palette.

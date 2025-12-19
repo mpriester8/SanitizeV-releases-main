@@ -21,6 +21,81 @@ from logic import move_files_logic, revert_files_logic, clear_cache_logic, load_
 from theme import DarkMode, apply_dark_mode_to_widget
 
 
+class CustomInputDialog:
+    """Custom input dialog with better formatting."""
+    
+    def __init__(self, parent, title, prompt, default=""):
+        self.result = None
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title(title)
+        self.dialog.geometry("550x280")
+        self.dialog.minsize(450, 250)
+        self.dialog.resizable(True, True)
+        
+        # Center the dialog
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Main frame with padding
+        main_frame = tk.Frame(self.dialog, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Prompt label with word wrap
+        prompt_label = tk.Label(
+            main_frame,
+            text=prompt,
+            justify=tk.LEFT,
+            wraplength=510,
+            font=("Arial", 10)
+        )
+        prompt_label.pack(pady=(0, 15), fill=tk.BOTH, expand=True)
+        
+        # Entry field
+        self.entry = tk.Entry(main_frame, font=("Arial", 11), width=50)
+        self.entry.pack(fill=tk.X, pady=(0, 20))
+        self.entry.insert(0, default)
+        self.entry.focus_set()
+        self.entry.bind("<Return>", lambda e: self.ok())
+        self.entry.bind("<Escape>", lambda e: self.cancel())
+        
+        # Buttons frame (always at bottom)
+        btn_frame = tk.Frame(main_frame)
+        btn_frame.pack(side=tk.BOTTOM, pady=(10, 0))
+        
+        tk.Button(
+            btn_frame,
+            text="OK",
+            command=self.ok,
+            bg="#5cb85c",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            width=12,
+            height=1
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="Cancel",
+            command=self.cancel,
+            bg="#6c757d",
+            fg="white",
+            font=("Arial", 10),
+            width=12,
+            height=1
+        ).pack(side=tk.LEFT, padx=5)
+        
+        # Wait for dialog to close
+        self.dialog.wait_window()
+    
+    def ok(self):
+        self.result = self.entry.get()
+        self.dialog.destroy()
+    
+    def cancel(self):
+        self.result = None
+        self.dialog.destroy()
+
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -45,6 +120,9 @@ class FileMoverApp:
         # Initialize theme
         self.theme = DarkMode(theme=self.load_theme_preference())
         self.apply_theme()
+
+        # Profile mappings (store IDs separately from listbox)
+        self.profiles_map = []  # List of profile IDs matching listbox indices
 
         # Variables
         self.source_dir = tk.StringVar(value=DEFAULT_SOURCE_DIR)
@@ -171,17 +249,12 @@ class FileMoverApp:
         self.notebook.add(self.tab_sanitize, text="Sanitize / Restore")
         self.setup_sanitize_tab(self.tab_sanitize)
 
-        # Tab 2: XML Swap
-        self.tab_xml_swap = tk.Frame(self.notebook)
-        self.notebook.add(self.tab_xml_swap, text="XML Swap")
-        self.setup_xml_swap_tab(self.tab_xml_swap)
-
-        # Tab 3: Graphics Editor
+        # Tab 2: Graphics Editor
         self.tab_graphics = tk.Frame(self.notebook)
         self.notebook.add(self.tab_graphics, text="Graphics Editor")
         self.setup_graphics_editor(self.tab_graphics)
 
-        # Tab 4: Cache Maintenance
+        # Tab 3: Cache Maintenance
         self.tab_cache = tk.Frame(self.notebook)
         self.notebook.add(self.tab_cache, text="Cache Maintenance")
         self.setup_cache_tab(self.tab_cache)
@@ -281,51 +354,6 @@ class FileMoverApp:
         self.log_area = scrolledtext.ScrolledText(bottom_frame, height=6)
         self.log_area.pack(fill=tk.BOTH, expand=True)
 
-    def setup_xml_swap_tab(self, parent):
-        """Setup widgets for the XML Swap tab."""
-        container = tk.Frame(parent, padx=15, pady=15)
-        container.pack(fill=tk.BOTH, expand=True)
-
-        # Info
-        tk.Label(
-            container, text="XML Replacement Configuration", font=("Arial", 14, "bold")
-        ).pack(pady=(0, 10), anchor='w')
-        tk.Label(
-            container,
-            text="Configure how the gta5_settings.xml file is handled during the Sanitize process.",
-            anchor='w'
-        ).pack(pady=(0, 20), anchor='w')
-
-        # --- Graphic Settings (XML) ---
-        group_xml = tk.LabelFrame(
-            container, text="Graphic Settings (XML)", padx=10, pady=10)
-        group_xml.pack(fill=tk.X, pady=5)
-
-        # Checkbox
-        tk.Checkbutton(
-            group_xml, text="Enable XML Swap",
-            variable=self.include_xml, command=self.toggle_xml_inputs
-        ).pack(anchor='w')
-
-        # XML Source Dir
-        self.frame_xml_src = tk.Frame(group_xml)
-        self.frame_xml_src.pack(fill=tk.X, pady=5)
-        tk.Label(self.frame_xml_src, text="XML Source Dir:",
-                 anchor='w').pack(fill=tk.X)
-        tk.Entry(
-            self.frame_xml_src, textvariable=self.xml_source_dir, state='readonly', bg="#f0f0f0"
-        ).pack(fill=tk.X)
-
-        # Replacement XML Picker
-        self.frame_rep_xml = tk.Frame(group_xml)
-        self.frame_rep_xml.pack(fill=tk.X, pady=5)
-        self.create_path_entry_compact(
-            self.frame_rep_xml, "New XML File:", self.replacement_xml, False
-        )
-
-        # Init state
-        self.toggle_xml_inputs()
-
     def setup_cache_tab(self, parent):
         """Setup widgets for the Cache Maintenance tab."""
         # Center container
@@ -360,6 +388,49 @@ class FileMoverApp:
         )
         self.btn_clear_cache.pack(pady=20)
 
+        # Auto-clear settings
+        settings_frame = tk.LabelFrame(container, text="Auto-Clear Settings", padx=15, pady=15)
+        settings_frame.pack(fill=tk.X, pady=20)
+
+        self.cache_auto_enabled = tk.BooleanVar(value=False)
+        self.cache_auto_startup = tk.BooleanVar(value=False)
+        self.cache_auto_days = tk.IntVar(value=7)
+
+        tk.Checkbutton(
+            settings_frame, 
+            text="Enable scheduled auto-clear",
+            variable=self.cache_auto_enabled
+        ).pack(anchor=tk.W)
+
+        tk.Checkbutton(
+            settings_frame,
+            text="Clear cache on app startup",
+            variable=self.cache_auto_startup
+        ).pack(anchor=tk.W, pady=5)
+
+        days_frame = tk.Frame(settings_frame)
+        days_frame.pack(anchor=tk.W, pady=5)
+        tk.Label(days_frame, text="Clear every").pack(side=tk.LEFT)
+        tk.Spinbox(
+            days_frame,
+            from_=1,
+            to=30,
+            textvariable=self.cache_auto_days,
+            width=5
+        ).pack(side=tk.LEFT, padx=5)
+        tk.Label(days_frame, text="days").pack(side=tk.LEFT)
+
+        tk.Button(
+            settings_frame,
+            text="Save Auto-Clear Settings",
+            command=self.save_cache_settings,
+            bg="#5cb85c",
+            fg="white"
+        ).pack(pady=10)
+
+        # Load current settings
+        self.load_cache_settings()
+
     def setup_graphics_editor(self, parent):
         """Setup widgets for the Graphics Editor tab."""
         # Top: File Loading
@@ -383,6 +454,68 @@ class FileMoverApp:
             top_frame, text="LOAD", command=self.load_xml_to_editor,
             bg="#5bc0de", fg="white", font=("Arial", 9, "bold")
         ).pack(side=tk.LEFT, padx=5)
+
+        # Custom Profiles section
+        profiles_frame = tk.LabelFrame(parent, text="Custom Graphics Profiles", padx=10, pady=10)
+        profiles_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        # Profile buttons row
+        profile_btn_frame = tk.Frame(profiles_frame)
+        profile_btn_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        tk.Button(
+            profile_btn_frame,
+            text="Save Current as Profile",
+            command=self.save_new_profile,
+            bg="#5cb85c",
+            fg="white",
+            font=("Arial", 9, "bold"),
+            width=20
+        ).pack(side=tk.LEFT, padx=2)
+        
+        tk.Button(
+            profile_btn_frame,
+            text="Apply Selected Profile",
+            command=self.load_selected_profile,
+            bg="#337ab7",
+            fg="white",
+            font=("Arial", 9, "bold"),
+            width=20
+        ).pack(side=tk.LEFT, padx=2)
+        
+        tk.Button(
+            profile_btn_frame,
+            text="Delete Profile",
+            command=self.delete_selected_profile,
+            bg="#d9534f",
+            fg="white",
+            font=("Arial", 9),
+            width=15
+        ).pack(side=tk.LEFT, padx=2)
+        
+        # Profile listbox
+        profile_list_frame = tk.Frame(profiles_frame)
+        profile_list_frame.pack(fill=tk.X)
+        
+        tk.Label(profile_list_frame, text="Saved Profiles:", font=("Arial", 9)).pack(anchor=tk.W, pady=(5, 2))
+        
+        list_container = tk.Frame(profile_list_frame)
+        list_container.pack(fill=tk.X)
+        
+        profile_scrollbar = ttk.Scrollbar(list_container)
+        profile_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.profiles_listbox = tk.Listbox(
+            list_container,
+            yscrollcommand=profile_scrollbar.set,
+            font=("Arial", 9),
+            height=4
+        )
+        self.profiles_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        profile_scrollbar.config(command=self.profiles_listbox.yview)
+        
+        # Load profiles
+        self.refresh_profiles_list()
 
         # Middle: Scrollable Editor Area
         self.editor_canvas_frame = tk.Frame(parent)
@@ -963,3 +1096,171 @@ class FileMoverApp:
             "Theme Changed", 
             f"Switched to {new_theme.upper()} mode."
         )
+
+    # ===== Cache Scheduler Methods =====
+    
+    def load_cache_settings(self):
+        """Load cache auto-clear settings."""
+        from cache_scheduler import load_cache_settings
+        settings = load_cache_settings()
+        self.cache_auto_enabled.set(settings.get("auto_clear_enabled", False))
+        self.cache_auto_startup.set(settings.get("auto_clear_on_startup", False))
+        self.cache_auto_days.set(settings.get("auto_clear_days", 7))
+    
+    def save_cache_settings(self):
+        """Save cache auto-clear settings."""
+        from cache_scheduler import update_cache_settings
+        update_cache_settings(
+            self.cache_auto_enabled.get(),
+            self.cache_auto_startup.get(),
+            self.cache_auto_days.get()
+        )
+        messagebox.showinfo("Settings Saved", "Cache auto-clear settings have been saved.")
+
+    # ===== Profiles Methods =====
+    
+    def save_new_profile(self):
+        """Save current graphics settings as a new profile."""
+        dialog = CustomInputDialog(
+            self.root,
+            "Save Graphics Profile",
+            "Enter a name for this graphics profile:\n\nThis will save your current graphics settings from the loaded XML file.\nExamples: Performance, Ultra Quality, Balanced, Streaming"
+        )
+        name = dialog.result
+        if not name:
+            return
+        
+        # Read current graphics settings from XML
+        xml_path = self.editor_xml_path.get()
+        if not os.path.exists(xml_path):
+            messagebox.showerror("Error", "Please load an XML file in the Graphics Editor first.")
+            return
+        
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            
+            # Extract all graphics settings
+            config = {}
+            
+            # Get all settings from SETTINGS_SCHEMA
+            for setting_key in SETTINGS_SCHEMA.keys():
+                elem = root.find(f".//*[@{setting_key}]")
+                if elem is not None:
+                    config[setting_key] = elem.get(setting_key)
+            
+            # Also save distance and density settings
+            distance_elem = root.find(".//distance")
+            if distance_elem is not None:
+                for attr in distance_elem.attrib:
+                    config[f"Distance_{attr}"] = distance_elem.get(attr)
+            
+            density_elem = root.find(".//density")
+            if density_elem is not None:
+                for attr in density_elem.attrib:
+                    config[f"Density_{attr}"] = density_elem.get(attr)
+            
+            from profiles import save_profile
+            if save_profile(name, "", config):
+                messagebox.showinfo("Success", f"Graphics profile '{name}' saved successfully!")
+                self.refresh_profiles_list()
+            else:
+                messagebox.showerror("Error", "Failed to save profile.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read graphics settings: {str(e)}")
+    
+    def refresh_profiles_list(self):
+        """Refresh the profiles listbox."""
+        from profiles import get_all_profiles
+        
+        self.profiles_listbox.delete(0, tk.END)
+        self.profiles_map = []  # Clear the mapping
+        profiles = get_all_profiles()
+        
+        for profile in profiles:
+            display = f"{profile['name']} - {profile['created']}"
+            self.profiles_listbox.insert(tk.END, display)
+            self.profiles_map.append(profile['id'])  # Store ID in mapping
+    
+    def load_selected_profile(self):
+        """Load the selected graphics profile."""
+        selection = self.profiles_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a profile to load.")
+            return
+        
+        from profiles import load_profile
+        
+        # Get profile ID from mapping
+        profile_id = self.profiles_map[selection[0]]
+        profile_data = load_profile(profile_id)
+        
+        if not profile_data:
+            messagebox.showerror("Error", "Failed to load profile.")
+            return
+        
+        # Check if XML file is loaded
+        xml_path = self.editor_xml_path.get()
+        if not os.path.exists(xml_path):
+            messagebox.showerror("Error", "Please load an XML file in the Graphics Editor first.")
+            return
+        
+        config = profile_data['config']
+        
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            
+            # Apply all settings from profile
+            for setting_name, value in config.items():
+                if setting_name.startswith("Distance_"):
+                    attr_name = setting_name.replace("Distance_", "")
+                    distance_elem = root.find(".//distance")
+                    if distance_elem is not None:
+                        distance_elem.set(attr_name, value)
+                elif setting_name.startswith("Density_"):
+                    attr_name = setting_name.replace("Density_", "")
+                    density_elem = root.find(".//density")
+                    if density_elem is not None:
+                        density_elem.set(attr_name, value)
+                else:
+                    # Regular setting
+                    elem = root.find(f".//*[@{setting_name}]")
+                    if elem is not None:
+                        elem.set(setting_name, value)
+            
+            # Save the modified XML
+            tree.write(xml_path, encoding='utf-8', xml_declaration=True)
+            
+            # Reload the editor to show new values
+            self.load_xml_to_editor()
+            
+            messagebox.showinfo("Success", f"Graphics profile '{profile_data['name']}' applied successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to apply graphics settings: {str(e)}")
+    
+    def delete_selected_profile(self):
+        """Delete the selected profile."""
+        selection = self.profiles_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a profile to delete.")
+            return
+        
+        from profiles import delete_profile, load_profile
+        
+        # Get profile info from mapping
+        profile_id = self.profiles_map[selection[0]]
+        profile_data = load_profile(profile_id)
+        profile_name = profile_data['name'] if profile_data else "this profile"
+        
+        if messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete profile '{profile_name}'?"
+        ):
+            if delete_profile(profile_id):
+                messagebox.showinfo("Success", "Profile deleted successfully!")
+                self.refresh_profiles_list()
+            else:
+                messagebox.showerror("Error", "Failed to delete profile.")
