@@ -36,7 +36,7 @@ class UpdateManager:
         # GitHub raw content URL for version info
         # Change this to your GitHub repo
         self.version_check_url = (
-            "https://raw.githubusercontent.com/mpriester8/SanitizeV/"
+            "https://raw.githubusercontent.com/mpriester8/SanitizeV-releases/"
             "main/version.json"
         )
         
