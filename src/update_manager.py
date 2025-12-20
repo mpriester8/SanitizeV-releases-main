@@ -279,11 +279,22 @@ class UpdateManager:
                 return False
 
             # Schedule cleanup of old exe after this process exits
-            # Use a simple cmd command that waits briefly then deletes the file
+            # Create a batch file that waits and retries deletion
             try:
-                cleanup_cmd = f'cmd /c ping localhost -n 3 > nul & del "{old_exe}"'
+                import tempfile
+                batch_path = os.path.join(tempfile.gettempdir(), "sanitize_v_cleanup.bat")
+                with open(batch_path, 'w') as f:
+                    f.write('@echo off\n')
+                    f.write('ping localhost -n 6 > nul\n')  # Wait ~5 seconds
+                    f.write(f'del "{old_exe}" 2>nul\n')
+                    f.write(f'if exist "{old_exe}" (\n')
+                    f.write('    ping localhost -n 4 > nul\n')  # Wait 3 more seconds
+                    f.write(f'    del "{old_exe}" 2>nul\n')
+                    f.write(')\n')
+                    f.write('del "%~f0"\n')  # Delete the batch file itself
+
                 subprocess.Popen(
-                    cleanup_cmd,
+                    f'cmd /c "{batch_path}"',
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
