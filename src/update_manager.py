@@ -198,6 +198,21 @@ class UpdateManager:
                     pass
                 return None
 
+            # Verify it's a valid Windows PE executable (starts with MZ)
+            try:
+                with open(download_path, 'rb') as f:
+                    header = f.read(2)
+                    if header != b'MZ':
+                        print(f"Download failed: not a valid Windows executable (invalid header)")
+                        try:
+                            download_path.unlink()
+                        except:
+                            pass
+                        return None
+            except Exception as e:
+                print(f"Download failed: could not verify executable: {e}")
+                return None
+
             print(f"Update downloaded successfully: {download_path} ({file_size} bytes)")
             return str(download_path)
 
@@ -271,7 +286,7 @@ class UpdateManager:
             # Create VBS script in TEMP directory (hidden from user)
             # The script will:
             # 1. Wait for old process to fully exit (with process check)
-            # 2. Clean up orphaned PyInstaller _MEI folders
+            # 2. Wait additional time for PyInstaller cleanup
             # 3. Delete the .old file from temp
             # 4. Launch the new exe (with retry logic)
             # 5. Delete itself
@@ -294,19 +309,8 @@ class UpdateManager:
                 f.write('    WScript.Sleep 1000\n')  # Wait 1 second between checks
                 f.write('Next\n')
                 f.write('\n')
-                # Additional wait for PyInstaller temp cleanup
-                f.write('WScript.Sleep 3000\n')
-                f.write('\n')
-                # Clean up orphaned _MEI folders from temp (PyInstaller extracts)
-                f.write(f'tempPath = "{temp_dir}"\n')
-                f.write('Set tempFolder = fso.GetFolder(tempPath)\n')
-                f.write('For Each subfolder In tempFolder.SubFolders\n')
-                f.write('    If Left(subfolder.Name, 4) = "_MEI" Then\n')
-                f.write('        On Error Resume Next\n')
-                f.write('        fso.DeleteFolder subfolder.Path, True\n')
-                f.write('        Err.Clear\n')
-                f.write('    End If\n')
-                f.write('Next\n')
+                # Additional wait for PyInstaller temp cleanup (increased to 5 seconds)
+                f.write('WScript.Sleep 5000\n')
                 f.write('\n')
                 # Delete the old exe with retry logic
                 f.write('For i = 1 To 5\n')
