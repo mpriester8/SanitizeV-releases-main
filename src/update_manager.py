@@ -229,45 +229,43 @@ class UpdateManager:
     def apply_update(self, exe_path: str) -> bool:
         """
         Apply the downloaded update by replacing the current executable.
-        
+        User will need to restart the application manually.
+
         Args:
             exe_path: Path to the new EXE file
-            
+
         Returns:
-            True if update installation started
+            True if update was applied successfully
         """
         try:
             if not os.path.exists(exe_path):
                 print(f"EXE not found: {exe_path}")
                 return False
-            
+
             # Get the current executable path
             if getattr(sys, 'frozen', False):
                 current_exe = sys.executable
             else:
                 print("Not running as frozen executable")
                 return False
-            
-            # Move current exe to temp directory as .old (hidden from user)
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-            old_exe_name = os.path.basename(current_exe) + ".old"
-            old_exe = os.path.join(temp_dir, old_exe_name)
-            
-            # Remove any existing .old file in temp first
+
+            # Move current exe to .old (backup)
+            old_exe = current_exe + ".old"
+
+            # Remove any existing .old file first
             if os.path.exists(old_exe):
                 try:
                     os.remove(old_exe)
                 except:
                     pass
-            
-            # Move current exe to temp as .old (this works even while running)
+
+            # Rename current exe to .old (this works even while running on Windows)
             try:
-                shutil.move(current_exe, old_exe)
+                os.rename(current_exe, old_exe)
             except Exception as e:
-                print(f"Failed to move current exe to temp: {e}")
+                print(f"Failed to rename current exe: {e}")
                 return False
-            
+
             # Move new exe to current location
             try:
                 shutil.move(exe_path, current_exe)
@@ -275,84 +273,21 @@ class UpdateManager:
                 print(f"Failed to move new exe: {e}")
                 # Try to restore old exe
                 try:
-                    shutil.move(old_exe, current_exe)
+                    os.rename(old_exe, current_exe)
                 except:
                     pass
                 return False
-            
-            # Get current process ID to pass to VBS for process checking
-            current_pid = os.getpid()
 
-            # Create VBS script in TEMP directory (hidden from user)
-            # The script will:
-            # 1. Wait for old process to fully exit (with process check)
-            # 2. Wait additional time for PyInstaller cleanup
-            # 3. Delete the .old file from temp
-            # 4. Launch the new exe (with retry logic)
-            # 5. Delete itself
-            vbs_script = os.path.join(temp_dir, "sanitize_v_updater.vbs")
-            with open(vbs_script, 'w') as f:
-                f.write('On Error Resume Next\n')
-                f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
-                f.write('Set shell = CreateObject("WScript.Shell")\n')
-                f.write('Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")\n')
-                f.write('\n')
-                # Wait for old process to fully terminate (check by PID)
-                f.write(f'oldPid = {current_pid}\n')
-                f.write('For i = 1 To 30\n')  # Max 30 attempts (30 seconds)
-                f.write('    Set processes = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE ProcessId = " & oldPid)\n')
-                f.write('    processFound = False\n')
-                f.write('    For Each proc In processes\n')
-                f.write('        processFound = True\n')
-                f.write('    Next\n')
-                f.write('    If Not processFound Then Exit For\n')
-                f.write('    WScript.Sleep 1000\n')  # Wait 1 second between checks
-                f.write('Next\n')
-                f.write('\n')
-                # Additional wait for PyInstaller temp cleanup (increased to 5 seconds)
-                f.write('WScript.Sleep 5000\n')
-                f.write('\n')
-                # Delete the old exe with retry logic
-                f.write('For i = 1 To 5\n')
-                f.write('    On Error Resume Next\n')
-                f.write(f'    If fso.FileExists("{old_exe}") Then\n')
-                f.write(f'        fso.DeleteFile "{old_exe}", True\n')
-                f.write('    End If\n')
-                f.write('    If Err.Number = 0 Then Exit For\n')
-                f.write('    Err.Clear\n')
-                f.write('    WScript.Sleep 1000\n')
-                f.write('Next\n')
-                f.write('\n')
-                # Launch new exe with retry logic and VISIBLE window (1 = normal window)
-                f.write('launched = False\n')
-                f.write('For i = 1 To 5\n')
-                f.write('    On Error Resume Next\n')
-                f.write(f'    If fso.FileExists("{current_exe}") Then\n')
-                f.write(f'        shell.Run """{current_exe}""", 1, False\n')  # 1 = normal visible window
-                f.write('        If Err.Number = 0 Then\n')
-                f.write('            launched = True\n')
-                f.write('            Exit For\n')
-                f.write('        End If\n')
-                f.write('        Err.Clear\n')
-                f.write('    End If\n')
-                f.write('    WScript.Sleep 2000\n')
-                f.write('Next\n')
-                f.write('\n')
-                # Clean up this script
-                f.write('WScript.Sleep 1000\n')
-                f.write('On Error Resume Next\n')
-                f.write('fso.DeleteFile WScript.ScriptFullName, True\n')
-            
-            # Start the VBS script
-            subprocess.Popen(
-                ['wscript', vbs_script],
-                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-            )
-            
-            # Exit current application immediately
-            print("Update applied! Restarting...")
-            os._exit(0)
-            
+            # Clean up old exe (best effort)
+            try:
+                os.remove(old_exe)
+            except:
+                # Will be cleaned up on next startup
+                pass
+
+            print("Update applied successfully. Please restart the application.")
+            return True
+
         except Exception as e:
             print(f"Failed to apply update: {e}")
             return False

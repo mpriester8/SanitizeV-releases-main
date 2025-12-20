@@ -186,19 +186,27 @@ def main():
                     def download_and_install():
                         exe_path = update_manager.download_update()
                         if exe_path:
-                            # Show notification before restart
-                            def show_restart_notice():
-                                messagebox.showinfo(
-                                    "Restarting",
-                                    f"Update downloaded successfully!\n\n"
-                                    f"The application will now restart to complete the update.\n"
-                                    f"Please wait..."
-                                )
-                                # Apply update after user acknowledges (will close this app and restart)
-                                update_manager.apply_update(exe_path)
+                            # Apply the update (swap the exe files)
+                            success = update_manager.apply_update(exe_path)
+
+                            def show_result():
+                                if success:
+                                    messagebox.showinfo(
+                                        "Update Complete",
+                                        f"Update to version {update_manager.new_version} installed successfully!\n\n"
+                                        f"Please close and restart the application to use the new version."
+                                    )
+                                    # Close the application
+                                    root.quit()
+                                else:
+                                    messagebox.showerror(
+                                        "Update Failed",
+                                        "Failed to apply the update. The downloaded file may be in use.\n\n"
+                                        "Please close the application and try again."
+                                    )
 
                             # Schedule the messagebox on the main thread
-                            root.after(0, show_restart_notice)
+                            root.after(0, show_result)
                         else:
                             def show_error():
                                 messagebox.showerror("Error", "Failed to download update. Please try again later.")
