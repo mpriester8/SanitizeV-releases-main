@@ -132,34 +132,21 @@ def main():
                 )
                 if update_manager.release_notes:
                     message += f"\nRelease Notes:\n{update_manager.release_notes}\n"
-                message += "\nWould you like to download the update?"
+                message += "\nWould you like to download and install the update?"
                 
                 if messagebox.askyesno("Update Available", message):
-                    # Ask user where to save the new version
-                    from tkinter import filedialog
-                    save_path = filedialog.asksaveasfilename(
-                        title="Save Update",
-                        defaultextension=".exe",
-                        initialfile=f"Sanitize_V_v{update_manager.new_version}.exe",
-                        filetypes=[("Executable", "*.exe")]
-                    )
+                    # Download and apply update
+                    def download_and_install():
+                        exe_path = update_manager.download_update()
+                        if exe_path:
+                            # Apply update (will close this app and restart with new version)
+                            update_manager.apply_update(exe_path)
+                        else:
+                            messagebox.showerror("Error", "Failed to download update.")
                     
-                    if save_path:
-                        # Download in a separate thread to not freeze UI
-                        def download_update():
-                            result = update_manager.download_update(save_path=save_path)
-                            if result:
-                                messagebox.showinfo(
-                                    "Download Complete",
-                                    f"Update downloaded successfully to:\n{save_path}\n\n"
-                                    "You can run the new version when you're ready."
-                                )
-                            else:
-                                messagebox.showerror("Error", "Failed to download update.")
-                        
-                        import threading
-                        thread = threading.Thread(target=download_update, daemon=True)
-                        thread.start()
+                    import threading
+                    thread = threading.Thread(target=download_and_install, daemon=True)
+                    thread.start()
         
         # Check for updates asynchronously
         update_manager.check_for_updates_async(callback=on_check_complete, timeout=5)

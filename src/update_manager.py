@@ -122,14 +122,12 @@ class UpdateManager:
     
     def download_update(
         self,
-        save_path: Optional[str] = None,
         progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> Optional[str]:
         """
-        Download the update EXE to a user-specified location.
+        Download the update EXE to temp location.
         
         Args:
-            save_path: Where to save the downloaded file (user chooses)
             progress_callback: Function called with (downloaded, total) bytes
             
         Returns:
@@ -139,12 +137,17 @@ class UpdateManager:
             print("No download URL available")
             return None
         
-        if not save_path:
-            print("No save path specified")
-            return None
-        
         try:
-            print(f"Downloading update to {save_path}...")
+            # Get the current executable directory
+            if getattr(sys, 'frozen', False):
+                current_exe_dir = Path(sys.executable).parent
+            else:
+                current_exe_dir = Path.cwd()
+            
+            exe_name = f"Sanitize_V_v{self.new_version}_new.exe"
+            download_path = current_exe_dir / exe_name
+            
+            print(f"Downloading update to {download_path}...")
             
             def download_progress(block_num, block_size, total_size):
                 downloaded = block_num * block_size
@@ -153,16 +156,96 @@ class UpdateManager:
             
             urllib.request.urlretrieve(
                 self.download_url,
-                save_path,
+                download_path,
                 reporthook=download_progress
             )
             
-            print(f"Update downloaded successfully: {save_path}")
-            return str(save_path)
+            print(f"Update downloaded successfully: {download_path}")
+            return str(download_path)
         
         except Exception as e:
             print(f"Failed to download update: {e}")
             return None
+    
+    def apply_update(self, exe_path: str) -> bool:
+        """
+        Apply the downloaded update by replacing the current executable.
+        
+        Args:
+            exe_path: Path to the new EXE file
+            
+        Returns:
+            True if update installation started
+        """
+        try:
+            if not os.path.exists(exe_path):
+                print(f"EXE not found: {exe_path}")
+                return False
+            
+            # Get the current executable path
+            if getattr(sys, 'frozen', False):
+                current_exe = sys.executable
+            else:
+                print("Not running as frozen executable")
+                return False
+            
+            # Rename current exe to .old
+            old_exe = current_exe + ".old"
+            
+            # Remove any existing .old file first
+            if os.path.exists(old_exe):
+                try:
+                    os.remove(old_exe)
+                except:
+                    pass
+            
+            # Move current exe to .old (this works even while running)
+            try:
+                os.rename(current_exe, old_exe)
+            except Exception as e:
+                print(f"Failed to rename current exe: {e}")
+                return False
+            
+            # Move new exe to current location
+            try:
+                shutil.move(exe_path, current_exe)
+            except Exception as e:
+                print(f"Failed to move new exe: {e}")
+                # Try to restore old exe
+                try:
+                    os.rename(old_exe, current_exe)
+                except:
+                    pass
+                return False
+            
+            # Create VBS script that will:
+            # 1. Wait for this process to exit
+            # 2. Delete the .old file
+            # 3. Launch the new exe
+            # 4. Delete itself
+            vbs_script = os.path.join(os.path.dirname(current_exe), "update_launcher.vbs")
+            with open(vbs_script, 'w') as f:
+                f.write('WScript.Sleep 2000\n')
+                f.write('On Error Resume Next\n')
+                f.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
+                f.write(f'fso.DeleteFile "{old_exe}"\n')
+                f.write(f'CreateObject("WScript.Shell").Run """{current_exe}""", 0, False\n')
+                f.write('WScript.Sleep 500\n')
+                f.write(f'fso.DeleteFile WScript.ScriptFullName\n')
+            
+            # Start the VBS script
+            subprocess.Popen(
+                ['wscript', vbs_script],
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+            )
+            
+            # Exit current application immediately
+            print("Update applied! Restarting...")
+            os._exit(0)
+            
+        except Exception as e:
+            print(f"Failed to apply update: {e}")
+            return False
     
     def cleanup_old_versions(self, keep_count: int = 2) -> None:
         """
