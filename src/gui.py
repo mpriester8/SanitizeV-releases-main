@@ -96,6 +96,53 @@ class CustomInputDialog:
         self.dialog.destroy()
 
 
+class ToolTip:
+    """Create a tooltip for a widget."""
+    
+    def __init__(self, widget, text, theme=None):
+        self.widget = widget
+        self.text = text
+        self.theme = theme
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+    
+    def show_tooltip(self, event=None):
+        """Display the tooltip."""
+        if self.tooltip_window or not self.text:
+            return
+        
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+        
+        self.tooltip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        
+        # Adapt colors based on theme
+        if self.theme and self.theme.is_dark():
+            bg_color = "#2b2b2b"
+            fg_color = "#ffffff"
+        else:
+            bg_color = "#ffffe0"
+            fg_color = "#000000"
+        
+        label = tk.Label(
+            tw, text=self.text, justify=tk.LEFT,
+            background=bg_color, foreground=fg_color,
+            relief=tk.SOLID, borderwidth=1,
+            font=("Arial", 9)
+        )
+        label.pack()
+    
+    def hide_tooltip(self, event=None):
+        """Hide the tooltip."""
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -115,6 +162,7 @@ class FileMoverApp:
         self.root.title(f"Sanitize V - v{VERSION}")
         self.root.geometry("850x1000")
         self.root.minsize(850, 600)
+        self.root.maxsize(1200, 2000)  # Match banner max width
         self.root.resizable(True, True)
 
         # Initialize theme
@@ -156,15 +204,8 @@ class FileMoverApp:
             img_path = resource_path("assets/banner.png")
             if os.path.exists(img_path):
                 self.original_banner = Image.open(img_path)
-                # Static Resize to fit width 850
-                target_width = 850
-                orig_w, orig_h = self.original_banner.size
-                aspect = orig_h / orig_w
-                new_h = int(target_width * aspect)
-                resized = self.original_banner.resize(
-                    (target_width, new_h), Image.Resampling.LANCZOS
-                )
-                self.photo_banner = ImageTk.PhotoImage(resized)
+                # Initial resize to default width
+                self.resize_banner(850)
         except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Failed to load banner: {e}")
 
@@ -214,6 +255,86 @@ class FileMoverApp:
 
         # Auto-load XML if file exists (silent mode)
         self.load_xml_to_editor(suppress_error=True)
+        
+        # Load window geometry
+        self.load_window_geometry()
+        
+        # Save geometry on close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # Bind window resize to update banner
+        self.root.bind("<Configure>", self.on_window_resize)
+    
+    def resize_banner(self, width):
+        """Resize banner image to match window width."""
+        if not self.original_banner:
+            return
+        
+        try:
+            orig_w, orig_h = self.original_banner.size
+            aspect = orig_h / orig_w
+            
+            # Cap the banner width to prevent it from being too wide
+            max_width = 1200
+            if width > max_width:
+                width = max_width
+            
+            new_h = int(width * aspect)
+            
+            # Cap the banner height to prevent it from taking up too much space
+            max_height = 250
+            if new_h > max_height:
+                new_h = max_height
+                width = int(max_height / aspect)
+            
+            resized = self.original_banner.resize(
+                (width, new_h), Image.Resampling.LANCZOS
+            )
+            self.photo_banner = ImageTk.PhotoImage(resized)
+            
+            # Update banner label if it exists
+            if hasattr(self, 'banner_label') and self.banner_label:
+                self.banner_label.configure(image=self.photo_banner)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            print(f"Failed to resize banner: {e}")
+    
+    def on_window_resize(self, event):
+        """Handle window resize events to update banner."""
+        # Only resize when the root window is resized (not child widgets)
+        if event.widget == self.root and self.original_banner:
+            # Debounce resize events
+            if hasattr(self, '_resize_timer') and self._resize_timer:
+                self.root.after_cancel(self._resize_timer)
+            self._resize_timer = self.root.after(100, lambda: self.resize_banner(event.width))
+    
+    def load_window_geometry(self):
+        """Load window size and position from saved settings."""
+        try:
+            import tempfile
+            geometry_file = os.path.join(tempfile.gettempdir(), 'sanitize_v_geometry.json')
+            if os.path.exists(geometry_file):
+                with open(geometry_file, 'r', encoding='utf-8') as f:
+                    geometry_data = json.load(f)
+                    if 'geometry' in geometry_data:
+                        self.root.geometry(geometry_data['geometry'])
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    
+    def save_window_geometry(self):
+        """Save window size and position."""
+        try:
+            import tempfile
+            geometry_file = os.path.join(tempfile.gettempdir(), 'sanitize_v_geometry.json')
+            geometry_data = {'geometry': self.root.geometry()}
+            with open(geometry_file, 'w', encoding='utf-8') as f:
+                json.dump(geometry_data, f)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    
+    def on_closing(self):
+        """Handle window close event."""
+        self.save_window_geometry()
+        self.root.destroy()
 
     def create_widgets(self):
         """Create and pack all GUI widgets."""
@@ -230,15 +351,16 @@ class FileMoverApp:
             command=self.toggle_dark_mode
         )
         self.theme_button.pack(side=tk.LEFT)
+        ToolTip(self.theme_button, "Switch between light and dark theme", self.theme)
 
         # Banner Area (Top)
         if self.photo_banner:
             self.banner_frame = tk.Frame(self.root, bg="black")
-            self.banner_frame.pack(fill=tk.X, side=tk.TOP)
+            self.banner_frame.pack(fill=tk.X, side=tk.TOP, pady=(0, 0))
 
             self.banner_label = tk.Label(
-                self.banner_frame, image=self.photo_banner, bg="black")
-            self.banner_label.pack(fill=tk.BOTH, expand=True)
+                self.banner_frame, image=self.photo_banner, bg="black", anchor="n")
+            self.banner_label.pack(fill=tk.X, anchor="n")
 
         # Tab Control
         self.notebook = ttk.Notebook(self.root)
@@ -342,12 +464,14 @@ class FileMoverApp:
             bg="#d9534f", fg="white", font=("Arial", 10, "bold"), height=2
         )
         btn_run.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ToolTip(btn_run, "Move selected folders to backup location to disable them", self.theme)
 
         btn_revert = tk.Button(
             btn_frame, text="RESTORE\n(Enable Selected)", command=self.run_revert,
             bg="#5cb85c", fg="white", font=("Arial", 10, "bold"), height=2
         )
         btn_revert.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        ToolTip(btn_revert, "Restore selected folders from backup location to enable them", self.theme)
 
         # Log Area
         tk.Label(bottom_frame, text="Status Log:", anchor='w').pack(fill=tk.X)
@@ -387,6 +511,7 @@ class FileMoverApp:
             bg="orange", fg="white", font=("Arial", 12, "bold"), height=2, width=20
         )
         self.btn_clear_cache.pack(pady=20)
+        ToolTip(self.btn_clear_cache, "Immediately clear FiveM cache folders to fix loading issues", self.theme)
 
         # Auto-clear settings
         settings_frame = tk.LabelFrame(container, text="Auto-Clear Settings", padx=15, pady=15)
@@ -420,13 +545,15 @@ class FileMoverApp:
         ).pack(side=tk.LEFT, padx=5)
         tk.Label(days_frame, text="days").pack(side=tk.LEFT)
 
-        tk.Button(
+        save_settings_btn = tk.Button(
             settings_frame,
             text="Save Auto-Clear Settings",
             command=self.save_cache_settings,
             bg="#5cb85c",
             fg="white"
-        ).pack(pady=10)
+        )
+        save_settings_btn.pack(pady=10)
+        ToolTip(save_settings_btn, "Save your automatic cache clearing preferences", self.theme)
 
         # Load current settings
         self.load_cache_settings()
@@ -444,16 +571,21 @@ class FileMoverApp:
         tk.Entry(
             top_frame, textvariable=self.editor_xml_path
         ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        tk.Button(
+        browse_btn = tk.Button(
             top_frame, text="Browse",
             command=lambda: self.editor_xml_path.set(
                 filedialog.askopenfilename(filetypes=[("XML files", "*.xml")])
             )
-        ).pack(side=tk.LEFT)
-        tk.Button(
+        )
+        browse_btn.pack(side=tk.LEFT)
+        ToolTip(browse_btn, "Browse for FiveM settings.xml file", self.theme)
+        
+        load_btn = tk.Button(
             top_frame, text="LOAD", command=self.load_xml_to_editor,
             bg="#5bc0de", fg="white", font=("Arial", 9, "bold")
-        ).pack(side=tk.LEFT, padx=5)
+        )
+        load_btn.pack(side=tk.LEFT, padx=5)
+        ToolTip(load_btn, "Load XML settings into the editor", self.theme)
 
         # Custom Profiles section
         profiles_frame = tk.LabelFrame(parent, text="Custom Graphics Profiles", padx=10, pady=10)
@@ -463,7 +595,7 @@ class FileMoverApp:
         profile_btn_frame = tk.Frame(profiles_frame)
         profile_btn_frame.pack(fill=tk.X, pady=(0, 5))
         
-        tk.Button(
+        save_profile_btn = tk.Button(
             profile_btn_frame,
             text="Save Current as Profile",
             command=self.save_new_profile,
@@ -471,9 +603,11 @@ class FileMoverApp:
             fg="white",
             font=("Arial", 9, "bold"),
             width=20
-        ).pack(side=tk.LEFT, padx=2)
+        )
+        save_profile_btn.pack(side=tk.LEFT, padx=2)
+        ToolTip(save_profile_btn, "Save current graphics settings as a reusable profile", self.theme)
         
-        tk.Button(
+        apply_profile_btn = tk.Button(
             profile_btn_frame,
             text="Apply Selected Profile",
             command=self.load_selected_profile,
@@ -481,9 +615,11 @@ class FileMoverApp:
             fg="white",
             font=("Arial", 9, "bold"),
             width=20
-        ).pack(side=tk.LEFT, padx=2)
+        )
+        apply_profile_btn.pack(side=tk.LEFT, padx=2)
+        ToolTip(apply_profile_btn, "Load and apply the selected profile settings to the editor", self.theme)
         
-        tk.Button(
+        delete_profile_btn = tk.Button(
             profile_btn_frame,
             text="Delete Profile",
             command=self.delete_selected_profile,
@@ -491,7 +627,9 @@ class FileMoverApp:
             fg="white",
             font=("Arial", 9),
             width=15
-        ).pack(side=tk.LEFT, padx=2)
+        )
+        delete_profile_btn.pack(side=tk.LEFT, padx=2)
+        ToolTip(delete_profile_btn, "Permanently delete the selected profile (requires confirmation)", self.theme)
         
         # Profile listbox
         profile_list_frame = tk.Frame(profiles_frame)
@@ -555,10 +693,12 @@ class FileMoverApp:
         # Bottom: Save
         bottom_frame = tk.Frame(parent, padx=10, pady=10)
         bottom_frame.pack(fill=tk.X)
-        tk.Button(
+        save_xml_btn = tk.Button(
             bottom_frame, text="SAVE NEW XML", command=self.save_xml_from_editor,
             bg="#5cb85c", fg="white", font=("Arial", 10, "bold"), height=2
-        ).pack(fill=tk.X)
+        )
+        save_xml_btn.pack(fill=tk.X)
+        ToolTip(save_xml_btn, "Save modified graphics settings back to the XML file", self.theme)
 
         self.editor_vars = {}  # Dictionary to hold TK variables mapped to XML keys/paths
         self.current_tree = None
@@ -1078,16 +1218,36 @@ class FileMoverApp:
         try:
             import sys
             if sys.platform == 'win32':
-                from ctypes import windll, c_int  # pylint: disable=import-outside-toplevel
-                hwnd = int(self.root.wm_frame(), 16)
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                DWMWA_WINDOW_CORNER_PREFERENCE = 33
+                from ctypes import windll, c_int, byref  # pylint: disable=import-outside-toplevel
+                # Get window handle - try multiple methods
                 try:
-                    windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, 
-                                                        c_int(1 if self.theme.is_dark() else 0), 4)
-                    windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, 
-                                                        c_int(2), 4)
-                except Exception:  # pylint: disable=broad-exception-caught
+                    hwnd = windll.user32.GetParent(self.root.winfo_id())
+                except Exception:
+                    try:
+                        hwnd = int(self.root.wm_frame(), 16)
+                    except Exception:
+                        hwnd = None
+                
+                if hwnd:
+                    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                    DWMWA_WINDOW_CORNER_PREFERENCE = 33
+                    try:
+                        is_dark = c_int(1 if self.theme.is_dark() else 0)
+                        windll.dwmapi.DwmSetWindowAttribute(
+                            hwnd, 
+                            DWMWA_USE_IMMERSIVE_DARK_MODE, 
+                            byref(is_dark), 
+                            4
+                        )
+                        corner_pref = c_int(2)
+                        windll.dwmapi.DwmSetWindowAttribute(
+                            hwnd, 
+                            DWMWA_WINDOW_CORNER_PREFERENCE, 
+                            byref(corner_pref), 
+                            4
+                        )
+                    except Exception:  # pylint: disable=broad-exception-caught
+                        pass
                     pass
         except (ImportError, AttributeError, OSError, ValueError, TypeError):
             pass

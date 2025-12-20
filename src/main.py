@@ -19,6 +19,16 @@ def main():
         pass
 
     root = tk.Tk()
+    
+    # Set window icon
+    try:
+        import os
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'app_icon.ico')
+        if os.path.exists(icon_path):
+            root.iconbitmap(icon_path)
+    except Exception:
+        pass
+    
     app = FileMoverApp(root)
     
     # Check for auto-clear on startup
@@ -40,23 +50,45 @@ def main():
         try:
             import sys
             if sys.platform == 'win32':
-                from ctypes import windll, c_int  # pylint: disable=import-outside-toplevel
-                # Get window handle
-                hwnd = int(root.wm_frame(), 16)
+                from ctypes import windll, c_int, byref  # pylint: disable=import-outside-toplevel
+                # Get window handle - try multiple methods
+                try:
+                    hwnd = windll.user32.GetParent(root.winfo_id())
+                except Exception:
+                    try:
+                        hwnd = int(root.wm_frame(), 16)
+                    except Exception:
+                        return
+                
                 # Set dark theme for title bar and borders (Windows 10/11)
                 DWMWA_USE_IMMERSIVE_DARK_MODE = 20
                 DWMWA_WINDOW_CORNER_PREFERENCE = 33
+                DWMWA_MICA_EFFECT = 1029  # For Windows 11
+                
                 try:
-                    # Try to set dark mode
-                    windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, 
-                                                        c_int(1 if app.theme.is_dark() else 0), 4)
-                    # Try to set window corner preference
-                    windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, 
-                                                        c_int(2), 4)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
-        except (ImportError, AttributeError, OSError, ValueError, TypeError):
-            pass
+                    # Determine if dark mode should be enabled
+                    is_dark = c_int(1 if app.theme.is_dark() else 0)
+                    
+                    # Try to set dark mode (use byref for proper pointer passing)
+                    windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd, 
+                        DWMWA_USE_IMMERSIVE_DARK_MODE, 
+                        byref(is_dark), 
+                        4
+                    )
+                    
+                    # Try to set window corner preference (rounded corners)
+                    corner_pref = c_int(2)  # DWMWCP_ROUND
+                    windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd, 
+                        DWMWA_WINDOW_CORNER_PREFERENCE, 
+                        byref(corner_pref), 
+                        4
+                    )
+                except Exception as e:
+                    print(f"Could not set title bar theme: {e}")
+        except (ImportError, AttributeError, OSError, ValueError, TypeError) as e:
+            print(f"Title bar theming not supported: {e}")
     
     # Set title bar after window is created and visible
     root.update()

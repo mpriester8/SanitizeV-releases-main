@@ -1,5 +1,5 @@
 {
-  "version": "1.1.4",
-  "download_url": "https://github.com/mpriester8/SanitizeV-releases-main/releases/download/1.1.4/Sanitize.V.exe",
-  "release_notes": "- NEW: Custom Graphics Profiles - Save and apply your configurations\n- NEW: Scheduled Cache Clearing - Auto-clear on startup or schedule\n- Enhanced Graphics Editor with integrated profiles\n- Streamlined interface with focused features\n- Improved custom input dialogs"
+  "version": "1.1.5",
+  "download_url": "https://github.com/mpriester8/SanitizeV-releases-main/releases/download/1.1.5/Sanitize.V.exe",
+  "release_notes": "- NEW: Custom Graphics Profiles - Save and apply your configurations\n- NEW: Scheduled Cache Clearing - Auto-clear on startup or schedule\n- NEW: Interactive tooltips on all buttons for helpful guidance\n- NEW: Window remembers size and position between sessions\n- Enhanced Graphics Editor with integrated profiles\n- Improved dark mode with Windows title bar theming\n- Dynamic banner resizing with size constraints\n- Custom application icon\n- Profile deletion requires confirmation\n- Streamlined interface with focused features"
 }

@@ -1,4 +1,4 @@
-# Sanitize V v1.1.4
+# Sanitize V v1.1.5
 
 Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, configuration files, and cache. It allows users to easily toggle mods, swap graphics configurations, edit settings via a GUI, and clear cache files. The application automatically checks for updates and notifies you when new versions are available, and features a customizable dark mode theme.
 
@@ -12,10 +12,12 @@ Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, co
 - **GUI Editor**: Edit `gta5_settings.xml` without touching raw XML code.
 - **Custom Profiles**: Save your current graphics settings as named profiles and apply them anytime.
 - **Profile Management**: Create, apply, and delete custom graphics profiles directly in the editor.
+- **Safe Deletion**: Profile deletion requires confirmation to prevent accidental loss.
 - **Smart Controls**: Uses Dropdowns for quality settings (Normal, High, Ultra) and Sliders for distance/density settings.
 - **Schema Validation**: Only allows valid values for specific settings (e.g., Shadow Quality, Tessellation, MSAA).
 - **Auto-Logic**: Automatically handles dependent settings (e.g., enabling `Reflection MipBlur` only when Reflection Quality is Very High/Ultra).
 - **Auto-Load**: Automatically loads your current settings on startup.
+- **Interactive Tooltips**: Hover over buttons to see helpful descriptions of their functions.
 
 ### 3. Cache Maintenance
 - **One-Click Cleaning**: Clears `cache`, `server-cache`, and `server-cache-priv` folders from the FiveM data directory.
@@ -34,6 +36,16 @@ Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, co
 - **Persistent Settings**: Your theme preference is automatically saved and restored on next launch.
 - **Eye Comfort**: Dark mode reduces eye strain in low-light environments with a carefully designed color palette.
 - **Full Coverage**: All UI elements adapt to the selected theme for a consistent experience.
+- **Windows Integration**: Title bar matches your selected theme on Windows 10/11.
+- **Adaptive Tooltips**: Tooltips automatically adjust colors to match the current theme.
+
+### 6. User Experience Enhancements
+- **Interactive Tooltips**: Hover over any button to see helpful descriptions of what it does.
+- **Window Memory**: Application remembers your window size and position between sessions.
+- **Custom Icon**: Distinctive application icon appears in the title bar and taskbar.
+- **Dynamic Banner**: Banner automatically resizes to fit window width while maintaining optimal proportions.
+- **Size Constraints**: Window and banner have intelligent size limits for the best visual experience.
+- **Confirmation Dialogs**: Important actions like profile deletion require confirmation to prevent mistakes.
 
 ## How to Run (Source Code)
 

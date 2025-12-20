@@ -1,5 +1,30 @@
 # Release Notes
 
+## Version 1.1.5 (December 19, 2025)
+
+### 🎨 UI/UX Improvements
+- **Interactive Tooltips**: All buttons now have helpful hover tooltips that adapt to light/dark theme
+- **Window Persistence**: Application remembers window size and position between sessions
+- **Custom Application Icon**: Distinctive icon appears in title bar and taskbar
+- **Dynamic Banner**: Banner automatically resizes with window width (max 1200px width, 250px height)
+- **Window Size Constraints**: Maximum window width limited to 1200px to match banner design
+- **Theme-Aware Tooltips**: Tooltips use dark background in dark mode, light background in light mode
+
+### 🔧 Technical Improvements
+- Fixed Windows title bar dark mode theming with improved DWM API calls
+- Improved window handle retrieval using `GetParent()` with fallback methods
+- Proper pointer passing to Windows API using `byref()`
+- Fixed theme application initialization order for consistent dark mode on restart
+- Debounced banner resize events for better performance
+- Banner properly anchored to prevent stretching
+
+### 🐛 Bug Fixes
+- Resolved banner displaying black bars when window is widened
+- Fixed dark mode not persisting correctly on application reopen
+- Fixed tooltip positioning and display
+
+---
+
 ## Version 1.1.4 (December 19, 2025)
 
 ### 🎉 New Features
@@ -9,6 +34,7 @@
 - Quickly apply different graphics configurations with one click
 - Perfect for switching between Performance, Quality, and custom setups
 - Easy profile management integrated into Graphics Editor
+- Profile deletion requires confirmation to prevent accidents
 
 **Scheduled Cache Clearing**
 - Auto-clear cache on app startup (optional)
@@ -16,21 +42,31 @@
 - Configurable auto-clear settings with easy toggle
 - Never worry about cache buildup again
 
-**Graphics Presets**
-- Custom graphics profiles for saving and loading configurations
-- Integrated directly into Graphics Editor for streamlined workflow
+**Enhanced User Experience**
+- Interactive tooltips on all buttons explaining their functions
+- Tooltips adapt to light/dark theme for consistent appearance
+- Window geometry persistence - remembers size and position between sessions
+- Custom application icon displays in title bar and taskbar
+- Dynamic banner resizing with maximum width (1200px) and height (250px) constraints
+- Window width limited to match banner for cohesive design
 
 ### 🔧 Improvements
 - Enhanced Graphics Editor with integrated custom profiles
 - Better cache management with scheduling options
 - Streamlined interface with focused feature set
 - Updated to use correct GitHub repository for updates
-- Improved custom input dialogs with better sizing and formatting
+- Improved custom input dialogs with better sizing and formatting (550x280, resizable)
+- Fixed Windows title bar dark mode theming with proper DWM API calls
+- Improved window handle retrieval for better Windows 10/11 compatibility
+- Theme application order fixed for proper dark mode persistence
 
 ### 🐛 Bug Fixes
 - Fixed update URL to match SanitizeV-releases-main repository
 - Fixed dialog windows showing buttons properly
 - Better validation for profile data
+- Fixed dark mode not applying correctly on application restart
+- Resolved banner black bars issue with dynamic resizing
+- Fixed theme application initialization order
 
 ---
 
