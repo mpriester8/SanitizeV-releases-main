@@ -22,7 +22,7 @@ def main():
         if getattr(sys, 'frozen', False):
             current_dir = os.path.dirname(sys.executable)
             
-            # Remove any leftover files from old update system
+            # Remove any leftover files from old update system in exe directory
             for old_file in os.listdir(current_dir):
                 if old_file.endswith('.old') or old_file.endswith('.vbs') or old_file.endswith('_new.exe'):
                     old_path = os.path.join(current_dir, old_file)
@@ -31,6 +31,20 @@ def main():
                         print(f"Cleaned up old file: {old_file}")
                     except Exception as e:
                         print(f"Could not remove {old_file}: {e}")
+            
+            # Also clean up VBS files from temp directory
+            try:
+                import tempfile
+                temp_dir = tempfile.gettempdir()
+                temp_vbs = os.path.join(temp_dir, "sanitize_v_updater.vbs")
+                if os.path.exists(temp_vbs):
+                    try:
+                        os.remove(temp_vbs)
+                        print("Cleaned up temp VBS file")
+                    except:
+                        pass
+            except:
+                pass
     except Exception as e:
         print(f"Cleanup error: {e}")
     

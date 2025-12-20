@@ -218,19 +218,23 @@ class UpdateManager:
                     pass
                 return False
             
-            # Create VBS script that will:
-            # 1. Wait for this process to exit
+            # Create VBS script in TEMP directory (hidden from user)
+            # The script will:
+            # 1. Wait longer for this process to fully exit and cleanup
             # 2. Delete the .old file
             # 3. Launch the new exe
             # 4. Delete itself
-            vbs_script = os.path.join(os.path.dirname(current_exe), "update_launcher.vbs")
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            vbs_script = os.path.join(temp_dir, "sanitize_v_updater.vbs")
             with open(vbs_script, 'w') as f:
-                f.write('WScript.Sleep 2000\n')
+                f.write('WScript.Sleep 5000\n')  # Wait 5 seconds for old process to fully exit
                 f.write('On Error Resume Next\n')
                 f.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
                 f.write(f'fso.DeleteFile "{old_exe}"\n')
-                f.write(f'CreateObject("WScript.Shell").Run """{current_exe}""", 0, False\n')
                 f.write('WScript.Sleep 500\n')
+                f.write(f'CreateObject("WScript.Shell").Run """{current_exe}""", 0, False\n')
+                f.write('WScript.Sleep 1000\n')
                 f.write(f'fso.DeleteFile WScript.ScriptFullName\n')
             
             # Start the VBS script
