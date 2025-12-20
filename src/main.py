@@ -11,6 +11,35 @@ from update_manager import UpdateManager
 
 def main():
     """Main function to start the application."""
+    # Clean up old exe files from previous update
+    # Wait longer for previous process to fully terminate
+    import time
+    time.sleep(2)  # Increased to 2 seconds
+    
+    try:
+        import os
+        import sys
+        if getattr(sys, 'frozen', False):
+            current_dir = os.path.dirname(sys.executable)
+            # Remove .old files with retry logic
+            for old_file in os.listdir(current_dir):
+                if old_file.endswith('.old') or old_file.endswith('_new.exe'):
+                    old_path = os.path.join(current_dir, old_file)
+                    # Try multiple times with longer delays (file might be locked)
+                    for attempt in range(10):
+                        try:
+                            os.remove(old_path)
+                            print(f"Cleaned up old update file: {old_file}")
+                            break
+                        except Exception as e:
+                            if attempt < 9:
+                                time.sleep(1)  # Increased to 1 second per retry
+                                print(f"Retry {attempt + 1}/10: Waiting for {old_file} to unlock...")
+                            else:
+                                print(f"Could not remove {old_file} after 10 attempts: {e}")
+    except Exception as e:
+        print(f"Cleanup error: {e}")
+    
     # Enable High DPI Awareness
     try:
         from ctypes import windll  # pylint: disable=import-outside-toplevel

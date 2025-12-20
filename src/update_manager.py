@@ -138,12 +138,22 @@ class UpdateManager:
             return None
         
         try:
-            # Create temp directory for download
-            temp_dir = Path(os.getenv('TEMP')) / 'SanitizeV_Update'
-            temp_dir.mkdir(exist_ok=True)
+            # Get the current executable directory
+            if getattr(sys, 'frozen', False):
+                current_exe_dir = Path(sys.executable).parent
+            else:
+                current_exe_dir = Path.cwd()
             
-            exe_name = f"Sanitize_V_v{self.new_version}.exe"
-            download_path = temp_dir / exe_name
+            # Clean up any old _new.exe files first
+            for old_new_file in current_exe_dir.glob('*_new.exe'):
+                try:
+                    old_new_file.unlink()
+                    print(f"Cleaned up old update file: {old_new_file.name}")
+                except Exception as e:
+                    print(f"Could not remove old update file: {e}")
+            
+            exe_name = f"Sanitize_V_v{self.new_version}_new.exe"
+            download_path = current_exe_dir / exe_name
             
             print(f"Downloading update to {download_path}...")
             
@@ -168,6 +178,7 @@ class UpdateManager:
     def apply_update(self, exe_path: str) -> bool:
         """
         Apply the downloaded update by replacing the current executable.
+        Uses a rename-and-replace strategy to avoid batch scripts.
         
         Args:
             exe_path: Path to the new EXE file
@@ -187,23 +198,41 @@ class UpdateManager:
                 print("Not running as frozen executable")
                 return False
             
-            # Create a batch script to replace the old exe with the new one
-            batch_script = os.path.join(os.path.dirname(current_exe), "update.bat")
+            # Rename current exe to .old
+            old_exe = current_exe + ".old"
             
-            with open(batch_script, 'w') as f:
-                f.write('@echo off\n')
-                f.write('timeout /t 2 /nobreak > nul\n')  # Wait for app to close
-                f.write(f'del /f /q "{current_exe}"\n')  # Delete old exe
-                f.write(f'move /y "{exe_path}" "{current_exe}"\n')  # Move new exe to old location
-                f.write(f'start "" "{current_exe}"\n')  # Start new version
-                f.write(f'del /f /q "{batch_script}"\n')  # Delete this script
+            # Remove any existing .old file first
+            if os.path.exists(old_exe):
+                try:
+                    os.remove(old_exe)
+                except:
+                    pass
             
-            # Execute the batch script and exit
-            subprocess.Popen(['cmd', '/c', batch_script], 
-                           creationflags=subprocess.CREATE_NO_WINDOW)
+            # Move current exe to .old (this works even while running)
+            try:
+                os.rename(current_exe, old_exe)
+            except Exception as e:
+                print(f"Failed to rename current exe: {e}")
+                return False
             
-            # Exit current application
-            sys.exit(0)
+            # Move new exe to current location
+            try:
+                shutil.move(exe_path, current_exe)
+            except Exception as e:
+                print(f"Failed to move new exe: {e}")
+                # Try to restore old exe
+                try:
+                    os.rename(old_exe, current_exe)
+                except:
+                    pass
+                return False
+            
+            # Start the new version immediately
+            subprocess.Popen([current_exe], creationflags=subprocess.CREATE_NO_WINDOW)
+            
+            # Exit current application immediately without delay
+            print("Update complete! Restarting...")
+            os._exit(0)  # Use _exit for immediate termination
             
         except Exception as e:
             print(f"Failed to apply update: {e}")
