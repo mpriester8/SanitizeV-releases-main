@@ -280,7 +280,7 @@ class UpdateManager:
                 f.write('On Error Resume Next\n')
                 f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
                 f.write('Set shell = CreateObject("WScript.Shell")\n')
-                f.write('Set wmi = GetObject("winmgmts:\\\\.\root\\cimv2")\n')
+                f.write('Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")\n')
                 f.write('\n')
                 # Wait for old process to fully terminate (check by PID)
                 f.write(f'oldPid = {current_pid}\n')
