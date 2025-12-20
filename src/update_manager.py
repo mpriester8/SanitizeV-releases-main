@@ -265,18 +265,48 @@ class UpdateManager:
                     pass
                 return False
             
+            # Get current process ID to pass to VBS for process checking
+            current_pid = os.getpid()
+
             # Create VBS script in TEMP directory (hidden from user)
             # The script will:
-            # 1. Wait for this process to fully exit and cleanup PyInstaller temp
-            # 2. Delete the .old file from temp
-            # 3. Launch the new exe (with retry logic)
-            # 4. Delete itself
+            # 1. Wait for old process to fully exit (with process check)
+            # 2. Clean up orphaned PyInstaller _MEI folders
+            # 3. Delete the .old file from temp
+            # 4. Launch the new exe (with retry logic)
+            # 5. Delete itself
             vbs_script = os.path.join(temp_dir, "sanitize_v_updater.vbs")
             with open(vbs_script, 'w') as f:
-                # Initial wait for process cleanup
-                f.write('WScript.Sleep 5000\n')  # Initial 5 second wait
+                f.write('On Error Resume Next\n')
                 f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
                 f.write('Set shell = CreateObject("WScript.Shell")\n')
+                f.write('Set wmi = GetObject("winmgmts:\\\\.\root\\cimv2")\n')
+                f.write('\n')
+                # Wait for old process to fully terminate (check by PID)
+                f.write(f'oldPid = {current_pid}\n')
+                f.write('For i = 1 To 30\n')  # Max 30 attempts (30 seconds)
+                f.write('    Set processes = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE ProcessId = " & oldPid)\n')
+                f.write('    processFound = False\n')
+                f.write('    For Each proc In processes\n')
+                f.write('        processFound = True\n')
+                f.write('    Next\n')
+                f.write('    If Not processFound Then Exit For\n')
+                f.write('    WScript.Sleep 1000\n')  # Wait 1 second between checks
+                f.write('Next\n')
+                f.write('\n')
+                # Additional wait for PyInstaller temp cleanup
+                f.write('WScript.Sleep 3000\n')
+                f.write('\n')
+                # Clean up orphaned _MEI folders from temp (PyInstaller extracts)
+                f.write(f'tempPath = "{temp_dir}"\n')
+                f.write('Set tempFolder = fso.GetFolder(tempPath)\n')
+                f.write('For Each subfolder In tempFolder.SubFolders\n')
+                f.write('    If Left(subfolder.Name, 4) = "_MEI" Then\n')
+                f.write('        On Error Resume Next\n')
+                f.write('        fso.DeleteFolder subfolder.Path, True\n')
+                f.write('        Err.Clear\n')
+                f.write('    End If\n')
+                f.write('Next\n')
                 f.write('\n')
                 # Delete the old exe with retry logic
                 f.write('For i = 1 To 5\n')
@@ -286,12 +316,12 @@ class UpdateManager:
                 f.write('    End If\n')
                 f.write('    If Err.Number = 0 Then Exit For\n')
                 f.write('    Err.Clear\n')
-                f.write('    WScript.Sleep 2000\n')  # Wait 2 seconds between retries
+                f.write('    WScript.Sleep 1000\n')
                 f.write('Next\n')
                 f.write('\n')
                 # Launch new exe with retry logic and VISIBLE window (1 = normal window)
                 f.write('launched = False\n')
-                f.write('For i = 1 To 3\n')
+                f.write('For i = 1 To 5\n')
                 f.write('    On Error Resume Next\n')
                 f.write(f'    If fso.FileExists("{current_exe}") Then\n')
                 f.write(f'        shell.Run """{current_exe}""", 1, False\n')  # 1 = normal visible window
@@ -301,7 +331,7 @@ class UpdateManager:
                 f.write('        End If\n')
                 f.write('        Err.Clear\n')
                 f.write('    End If\n')
-                f.write('    WScript.Sleep 2000\n')  # Wait 2 seconds between retries
+                f.write('    WScript.Sleep 2000\n')
                 f.write('Next\n')
                 f.write('\n')
                 # Clean up this script
