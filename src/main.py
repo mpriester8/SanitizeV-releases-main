@@ -15,49 +15,22 @@ def main():
     import warnings
     warnings.filterwarnings("ignore")
     
-    # Clean up old exe files from previous update
-    # Wait longer for previous process to fully terminate
-    import time
-    time.sleep(3)  # Increased to 3 seconds to allow complete cleanup
-    
+    # Clean up old files from previous update attempts (if any exist)
     try:
         import os
         import sys
         if getattr(sys, 'frozen', False):
             current_dir = os.path.dirname(sys.executable)
             
-            # Also try to clean up old PyInstaller temp directories
-            try:
-                import tempfile
-                temp_base = tempfile.gettempdir()
-                for item in os.listdir(temp_base):
-                    if item.startswith('_MEI') and item != os.path.basename(getattr(sys, '_MEIPASS', '')):
-                        old_temp = os.path.join(temp_base, item)
-                        try:
-                            import shutil
-                            shutil.rmtree(old_temp, ignore_errors=True)
-                            print(f"Cleaned up old temp directory: {item}")
-                        except:
-                            pass
-            except:
-                pass
-            
-            # Remove .old files with retry logic
+            # Remove any leftover files from old update system
             for old_file in os.listdir(current_dir):
-                if old_file.endswith('.old') or old_file.endswith('_new.exe'):
+                if old_file.endswith('.old') or old_file.endswith('.vbs') or old_file.endswith('_new.exe'):
                     old_path = os.path.join(current_dir, old_file)
-                    # Try multiple times with longer delays (file might be locked)
-                    for attempt in range(10):
-                        try:
-                            os.remove(old_path)
-                            print(f"Cleaned up old update file: {old_file}")
-                            break
-                        except Exception as e:
-                            if attempt < 9:
-                                time.sleep(1)  # Increased to 1 second per retry
-                                print(f"Retry {attempt + 1}/10: Waiting for {old_file} to unlock...")
-                            else:
-                                print(f"Could not remove {old_file} after 10 attempts: {e}")
+                    try:
+                        os.remove(old_path)
+                        print(f"Cleaned up old file: {old_file}")
+                    except Exception as e:
+                        print(f"Could not remove {old_file}: {e}")
     except Exception as e:
         print(f"Cleanup error: {e}")
     
@@ -159,25 +132,34 @@ def main():
                 )
                 if update_manager.release_notes:
                     message += f"\nRelease Notes:\n{update_manager.release_notes}\n"
-                message += "\nWould you like to download and install the update?"
+                message += "\nWould you like to download the update?"
                 
                 if messagebox.askyesno("Update Available", message):
-                    # Download in a separate thread to not freeze UI
-                    def download_and_update():
-                        exe_path = update_manager.download_update()
-                        if exe_path:
-                            if messagebox.askyesno(
-                                "Update Downloaded",
-                                "Update downloaded successfully. "
-                                "The application will now close and install the update."
-                            ):
-                                update_manager.apply_update(exe_path)
-                        else:
-                            messagebox.showerror("Error", "Failed to download update.")
+                    # Ask user where to save the new version
+                    from tkinter import filedialog
+                    save_path = filedialog.asksaveasfilename(
+                        title="Save Update",
+                        defaultextension=".exe",
+                        initialfile=f"Sanitize_V_v{update_manager.new_version}.exe",
+                        filetypes=[("Executable", "*.exe")]
+                    )
                     
-                    import threading
-                    thread = threading.Thread(target=download_and_update, daemon=True)
-                    thread.start()
+                    if save_path:
+                        # Download in a separate thread to not freeze UI
+                        def download_update():
+                            result = update_manager.download_update(save_path=save_path)
+                            if result:
+                                messagebox.showinfo(
+                                    "Download Complete",
+                                    f"Update downloaded successfully to:\n{save_path}\n\n"
+                                    "You can run the new version when you're ready."
+                                )
+                            else:
+                                messagebox.showerror("Error", "Failed to download update.")
+                        
+                        import threading
+                        thread = threading.Thread(target=download_update, daemon=True)
+                        thread.start()
         
         # Check for updates asynchronously
         update_manager.check_for_updates_async(callback=on_check_complete, timeout=5)
