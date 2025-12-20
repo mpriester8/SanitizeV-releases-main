@@ -189,21 +189,24 @@ class UpdateManager:
                 print("Not running as frozen executable")
                 return False
             
-            # Rename current exe to .old
-            old_exe = current_exe + ".old"
+            # Move current exe to temp directory as .old (hidden from user)
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            old_exe_name = os.path.basename(current_exe) + ".old"
+            old_exe = os.path.join(temp_dir, old_exe_name)
             
-            # Remove any existing .old file first
+            # Remove any existing .old file in temp first
             if os.path.exists(old_exe):
                 try:
                     os.remove(old_exe)
                 except:
                     pass
             
-            # Move current exe to .old (this works even while running)
+            # Move current exe to temp as .old (this works even while running)
             try:
-                os.rename(current_exe, old_exe)
+                shutil.move(current_exe, old_exe)
             except Exception as e:
-                print(f"Failed to rename current exe: {e}")
+                print(f"Failed to move current exe to temp: {e}")
                 return False
             
             # Move new exe to current location
@@ -213,22 +216,20 @@ class UpdateManager:
                 print(f"Failed to move new exe: {e}")
                 # Try to restore old exe
                 try:
-                    os.rename(old_exe, current_exe)
+                    shutil.move(old_exe, current_exe)
                 except:
                     pass
                 return False
             
             # Create VBS script in TEMP directory (hidden from user)
             # The script will:
-            # 1. Wait longer for this process to fully exit and cleanup
-            # 2. Delete the .old file
+            # 1. Wait longer for this process to fully exit and cleanup PyInstaller temp
+            # 2. Delete the .old file from temp
             # 3. Launch the new exe
             # 4. Delete itself
-            import tempfile
-            temp_dir = tempfile.gettempdir()
             vbs_script = os.path.join(temp_dir, "sanitize_v_updater.vbs")
             with open(vbs_script, 'w') as f:
-                f.write('WScript.Sleep 5000\n')  # Wait 5 seconds for old process to fully exit
+                f.write('WScript.Sleep 8000\n')  # Wait 8 seconds for old process and PyInstaller to fully exit
                 f.write('On Error Resume Next\n')
                 f.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
                 f.write(f'fso.DeleteFile "{old_exe}"\n')

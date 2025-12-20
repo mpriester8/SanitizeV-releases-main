@@ -32,15 +32,27 @@ def main():
                     except Exception as e:
                         print(f"Could not remove {old_file}: {e}")
             
-            # Also clean up VBS files from temp directory
+            # Clean up old files from temp directory
             try:
                 import tempfile
                 temp_dir = tempfile.gettempdir()
+                
+                # Remove VBS updater script
                 temp_vbs = os.path.join(temp_dir, "sanitize_v_updater.vbs")
                 if os.path.exists(temp_vbs):
                     try:
                         os.remove(temp_vbs)
                         print("Cleaned up temp VBS file")
+                    except:
+                        pass
+                
+                # Remove any .old exe files in temp
+                exe_name = os.path.basename(sys.executable)
+                old_exe_in_temp = os.path.join(temp_dir, exe_name + ".old")
+                if os.path.exists(old_exe_in_temp):
+                    try:
+                        os.remove(old_exe_in_temp)
+                        print("Cleaned up old exe from temp")
                     except:
                         pass
             except:
