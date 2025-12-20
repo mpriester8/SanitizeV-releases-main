@@ -282,12 +282,18 @@ class UpdateManager:
                 return False
 
             # Schedule cleanup of old exe in temp after this process exits
-            # Uses a simple cmd that waits then deletes - runs hidden in background
+            # Use VBS script - runs completely hidden with no window
             try:
-                cleanup_cmd = f'cmd /c "ping localhost -n 6 >nul & del "{old_exe}" 2>nul"'
+                vbs_path = os.path.join(temp_dir, "cleanup.vbs")
+                with open(vbs_path, 'w') as f:
+                    f.write('WScript.Sleep 5000\n')
+                    f.write('On Error Resume Next\n')
+                    f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
+                    f.write(f'fso.DeleteFile "{old_exe}", True\n')
+                    f.write(f'fso.DeleteFile WScript.ScriptFullName, True\n')
+
                 subprocess.Popen(
-                    cleanup_cmd,
-                    shell=True,
+                    ['wscript', '//B', vbs_path],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
