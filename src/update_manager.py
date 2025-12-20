@@ -122,47 +122,91 @@ class UpdateManager:
     
     def download_update(
         self,
-        progress_callback: Optional[Callable[[int, int], None]] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        timeout: int = 60
     ) -> Optional[str]:
         """
-        Download the update EXE to temp location.
-        
+        Download the update EXE to temp location with timeout and validation.
+
         Args:
             progress_callback: Function called with (downloaded, total) bytes
-            
+            timeout: Download timeout in seconds (default 60)
+
         Returns:
             Path to downloaded file or None if failed
         """
         if not self.download_url:
             print("No download URL available")
             return None
-        
+
         try:
             # Get the current executable directory
             if getattr(sys, 'frozen', False):
                 current_exe_dir = Path(sys.executable).parent
             else:
                 current_exe_dir = Path.cwd()
-            
+
             exe_name = f"Sanitize_V_v{self.new_version}_new.exe"
             download_path = current_exe_dir / exe_name
-            
+
             print(f"Downloading update to {download_path}...")
-            
-            def download_progress(block_num, block_size, total_size):
-                downloaded = block_num * block_size
-                if progress_callback:
-                    progress_callback(min(downloaded, total_size), total_size)
-            
-            urllib.request.urlretrieve(
+
+            # Use urlopen with timeout instead of urlretrieve for better control
+            request = urllib.request.Request(
                 self.download_url,
-                download_path,
-                reporthook=download_progress
+                headers={'User-Agent': f'{self.app_name} Updater'}
             )
-            
-            print(f"Update downloaded successfully: {download_path}")
+
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                total_size = int(response.headers.get('Content-Length', 0))
+                downloaded = 0
+                chunk_size = 8192
+
+                with open(download_path, 'wb') as out_file:
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        out_file.write(chunk)
+                        downloaded += len(chunk)
+                        if progress_callback and total_size > 0:
+                            progress_callback(downloaded, total_size)
+
+            # Validate downloaded file
+            if not download_path.exists():
+                print("Download failed: file does not exist")
+                return None
+
+            file_size = download_path.stat().st_size
+
+            # Check minimum size (exe should be at least 1MB typically)
+            min_size = 1 * 1024 * 1024  # 1 MB
+            if file_size < min_size:
+                print(f"Download failed: file too small ({file_size} bytes, expected at least {min_size})")
+                try:
+                    download_path.unlink()
+                except:
+                    pass
+                return None
+
+            # If we got Content-Length, verify it matches
+            if total_size > 0 and file_size != total_size:
+                print(f"Download failed: size mismatch (got {file_size}, expected {total_size})")
+                try:
+                    download_path.unlink()
+                except:
+                    pass
+                return None
+
+            print(f"Update downloaded successfully: {download_path} ({file_size} bytes)")
             return str(download_path)
-        
+
+        except urllib.error.URLError as e:
+            print(f"Network error during download: {e}")
+            return None
+        except TimeoutError:
+            print(f"Download timed out after {timeout} seconds")
+            return None
         except Exception as e:
             print(f"Failed to download update: {e}")
             return None
@@ -223,20 +267,47 @@ class UpdateManager:
             
             # Create VBS script in TEMP directory (hidden from user)
             # The script will:
-            # 1. Wait longer for this process to fully exit and cleanup PyInstaller temp
+            # 1. Wait for this process to fully exit and cleanup PyInstaller temp
             # 2. Delete the .old file from temp
-            # 3. Launch the new exe
+            # 3. Launch the new exe (with retry logic)
             # 4. Delete itself
             vbs_script = os.path.join(temp_dir, "sanitize_v_updater.vbs")
             with open(vbs_script, 'w') as f:
-                f.write('WScript.Sleep 8000\n')  # Wait 8 seconds for old process and PyInstaller to fully exit
-                f.write('On Error Resume Next\n')
-                f.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
-                f.write(f'fso.DeleteFile "{old_exe}"\n')
-                f.write('WScript.Sleep 500\n')
-                f.write(f'CreateObject("WScript.Shell").Run """{current_exe}""", 0, False\n')
+                # Initial wait for process cleanup
+                f.write('WScript.Sleep 5000\n')  # Initial 5 second wait
+                f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
+                f.write('Set shell = CreateObject("WScript.Shell")\n')
+                f.write('\n')
+                # Delete the old exe with retry logic
+                f.write('For i = 1 To 5\n')
+                f.write('    On Error Resume Next\n')
+                f.write(f'    If fso.FileExists("{old_exe}") Then\n')
+                f.write(f'        fso.DeleteFile "{old_exe}", True\n')
+                f.write('    End If\n')
+                f.write('    If Err.Number = 0 Then Exit For\n')
+                f.write('    Err.Clear\n')
+                f.write('    WScript.Sleep 2000\n')  # Wait 2 seconds between retries
+                f.write('Next\n')
+                f.write('\n')
+                # Launch new exe with retry logic and VISIBLE window (1 = normal window)
+                f.write('launched = False\n')
+                f.write('For i = 1 To 3\n')
+                f.write('    On Error Resume Next\n')
+                f.write(f'    If fso.FileExists("{current_exe}") Then\n')
+                f.write(f'        shell.Run """{current_exe}""", 1, False\n')  # 1 = normal visible window
+                f.write('        If Err.Number = 0 Then\n')
+                f.write('            launched = True\n')
+                f.write('            Exit For\n')
+                f.write('        End If\n')
+                f.write('        Err.Clear\n')
+                f.write('    End If\n')
+                f.write('    WScript.Sleep 2000\n')  # Wait 2 seconds between retries
+                f.write('Next\n')
+                f.write('\n')
+                # Clean up this script
                 f.write('WScript.Sleep 1000\n')
-                f.write(f'fso.DeleteFile WScript.ScriptFullName\n')
+                f.write('On Error Resume Next\n')
+                f.write('fso.DeleteFile WScript.ScriptFullName, True\n')
             
             # Start the VBS script
             subprocess.Popen(
