@@ -278,11 +278,19 @@ class UpdateManager:
                     pass
                 return False
 
-            # Clean up old exe (best effort)
+            # Schedule cleanup of old exe after this process exits
+            # Use a simple cmd command that waits briefly then deletes the file
             try:
-                os.remove(old_exe)
+                cleanup_cmd = f'cmd /c ping localhost -n 3 > nul & del "{old_exe}"'
+                subprocess.Popen(
+                    cleanup_cmd,
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+                )
             except:
-                # Will be cleaned up on next startup
+                # Will be cleaned up on next startup if this fails
                 pass
 
             print("Update applied successfully. Please restart the application.")
