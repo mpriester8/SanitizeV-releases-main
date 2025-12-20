@@ -167,7 +167,7 @@ class UpdateManager:
     
     def apply_update(self, exe_path: str) -> bool:
         """
-        Apply the downloaded update by launching the installer.
+        Apply the downloaded update by replacing the current executable.
         
         Args:
             exe_path: Path to the new EXE file
@@ -187,8 +187,20 @@ class UpdateManager:
                 print("Not running as frozen executable")
                 return False
             
-            # Start the new version
-            subprocess.Popen([exe_path])
+            # Create a batch script to replace the old exe with the new one
+            batch_script = os.path.join(os.path.dirname(current_exe), "update.bat")
+            
+            with open(batch_script, 'w') as f:
+                f.write('@echo off\n')
+                f.write('timeout /t 2 /nobreak > nul\n')  # Wait for app to close
+                f.write(f'del /f /q "{current_exe}"\n')  # Delete old exe
+                f.write(f'move /y "{exe_path}" "{current_exe}"\n')  # Move new exe to old location
+                f.write(f'start "" "{current_exe}"\n')  # Start new version
+                f.write(f'del /f /q "{batch_script}"\n')  # Delete this script
+            
+            # Execute the batch script and exit
+            subprocess.Popen(['cmd', '/c', batch_script], 
+                           creationflags=subprocess.CREATE_NO_WINDOW)
             
             # Exit current application
             sys.exit(0)
