@@ -249,21 +249,24 @@ class UpdateManager:
                 print("Not running as frozen executable")
                 return False
 
-            # Move current exe to .old (backup)
-            old_exe = current_exe + ".old"
+            # Move current exe to temp directory (hidden from user)
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            old_exe_name = os.path.basename(current_exe) + ".old"
+            old_exe = os.path.join(temp_dir, old_exe_name)
 
-            # Remove any existing .old file first
+            # Remove any existing .old file in temp first
             if os.path.exists(old_exe):
                 try:
                     os.remove(old_exe)
                 except:
                     pass
 
-            # Rename current exe to .old (this works even while running on Windows)
+            # Move current exe to temp (this works even while running on Windows)
             try:
-                os.rename(current_exe, old_exe)
+                shutil.move(current_exe, old_exe)
             except Exception as e:
-                print(f"Failed to rename current exe: {e}")
+                print(f"Failed to move current exe to temp: {e}")
                 return False
 
             # Move new exe to current location
@@ -273,28 +276,17 @@ class UpdateManager:
                 print(f"Failed to move new exe: {e}")
                 # Try to restore old exe
                 try:
-                    os.rename(old_exe, current_exe)
+                    shutil.move(old_exe, current_exe)
                 except:
                     pass
                 return False
 
-            # Schedule cleanup of old exe after this process exits
-            # Create a batch file that waits and retries deletion
+            # Schedule cleanup of old exe in temp after this process exits
+            # Uses a simple cmd that waits then deletes - runs hidden in background
             try:
-                import tempfile
-                batch_path = os.path.join(tempfile.gettempdir(), "sanitize_v_cleanup.bat")
-                with open(batch_path, 'w') as f:
-                    f.write('@echo off\n')
-                    f.write('ping localhost -n 6 > nul\n')  # Wait ~5 seconds
-                    f.write(f'del "{old_exe}" 2>nul\n')
-                    f.write(f'if exist "{old_exe}" (\n')
-                    f.write('    ping localhost -n 4 > nul\n')  # Wait 3 more seconds
-                    f.write(f'    del "{old_exe}" 2>nul\n')
-                    f.write(')\n')
-                    f.write('del "%~f0"\n')  # Delete the batch file itself
-
+                cleanup_cmd = f'cmd /c "ping localhost -n 6 >nul & del "{old_exe}" 2>nul"'
                 subprocess.Popen(
-                    f'cmd /c "{batch_path}"',
+                    cleanup_cmd,
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
