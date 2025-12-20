@@ -227,10 +227,19 @@ class UpdateManager:
                     pass
                 return False
             
-            # Start the new version immediately
-            subprocess.Popen([current_exe], creationflags=subprocess.CREATE_NO_WINDOW)
+            # Create a small VBS script to restart after delay (avoids conflicts)
+            vbs_script = os.path.join(os.path.dirname(current_exe), "restart_app.vbs")
+            with open(vbs_script, 'w') as f:
+                f.write('WScript.Sleep 3000\n')  # Wait 3 seconds
+                f.write(f'CreateObject("WScript.Shell").Run """{current_exe}""", 0, False\n')
+                f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
+                f.write(f'fso.DeleteFile WScript.ScriptFullName\n')  # Delete itself
             
-            # Exit current application immediately without delay
+            # Start the VBS script which will launch the new version after delay
+            subprocess.Popen(['wscript', vbs_script], 
+                           creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS)
+            
+            # Exit current application immediately
             print("Update complete! Restarting...")
             os._exit(0)  # Use _exit for immediate termination
             

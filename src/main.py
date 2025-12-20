@@ -11,16 +11,37 @@ from update_manager import UpdateManager
 
 def main():
     """Main function to start the application."""
+    # Suppress PyInstaller cleanup warnings
+    import warnings
+    warnings.filterwarnings("ignore")
+    
     # Clean up old exe files from previous update
     # Wait longer for previous process to fully terminate
     import time
-    time.sleep(2)  # Increased to 2 seconds
+    time.sleep(3)  # Increased to 3 seconds to allow complete cleanup
     
     try:
         import os
         import sys
         if getattr(sys, 'frozen', False):
             current_dir = os.path.dirname(sys.executable)
+            
+            # Also try to clean up old PyInstaller temp directories
+            try:
+                import tempfile
+                temp_base = tempfile.gettempdir()
+                for item in os.listdir(temp_base):
+                    if item.startswith('_MEI') and item != os.path.basename(getattr(sys, '_MEIPASS', '')):
+                        old_temp = os.path.join(temp_base, item)
+                        try:
+                            import shutil
+                            shutil.rmtree(old_temp, ignore_errors=True)
+                            print(f"Cleaned up old temp directory: {item}")
+                        except:
+                            pass
+            except:
+                pass
+            
             # Remove .old files with retry logic
             for old_file in os.listdir(current_dir):
                 if old_file.endswith('.old') or old_file.endswith('_new.exe'):
