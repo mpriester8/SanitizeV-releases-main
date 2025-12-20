@@ -165,11 +165,24 @@ def main():
                     def download_and_install():
                         exe_path = update_manager.download_update()
                         if exe_path:
-                            # Apply update (will close this app and restart with new version)
-                            update_manager.apply_update(exe_path)
+                            # Show notification before restart
+                            def show_restart_notice():
+                                messagebox.showinfo(
+                                    "Restarting",
+                                    f"Update downloaded successfully!\n\n"
+                                    f"The application will now restart to complete the update.\n"
+                                    f"Please wait..."
+                                )
+                                # Apply update after user acknowledges (will close this app and restart)
+                                update_manager.apply_update(exe_path)
+
+                            # Schedule the messagebox on the main thread
+                            root.after(0, show_restart_notice)
                         else:
-                            messagebox.showerror("Error", "Failed to download update.")
-                    
+                            def show_error():
+                                messagebox.showerror("Error", "Failed to download update. Please try again later.")
+                            root.after(0, show_error)
+
                     import threading
                     thread = threading.Thread(target=download_and_install, daemon=True)
                     thread.start()
