@@ -55,6 +55,27 @@ def main():
                         print("Cleaned up old exe from temp")
                     except:
                         pass
+
+                # Clean up orphaned PyInstaller _MEI folders (from crashed/failed updates)
+                # Only clean folders older than 1 hour to avoid removing active ones
+                import time
+                current_time = time.time()
+                one_hour_ago = current_time - 3600
+                current_mei = os.path.basename(getattr(sys, '_MEIPASS', ''))
+
+                for item in os.listdir(temp_dir):
+                    if item.startswith('_MEI') and item != current_mei:
+                        mei_path = os.path.join(temp_dir, item)
+                        try:
+                            if os.path.isdir(mei_path):
+                                # Only remove if older than 1 hour
+                                folder_mtime = os.path.getmtime(mei_path)
+                                if folder_mtime < one_hour_ago:
+                                    import shutil
+                                    shutil.rmtree(mei_path, ignore_errors=True)
+                                    print(f"Cleaned up old _MEI folder: {item}")
+                        except:
+                            pass
             except:
                 pass
     except Exception as e:
