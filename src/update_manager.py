@@ -13,6 +13,13 @@ import urllib.error
 from pathlib import Path
 from typing import Optional, Callable
 import subprocess
+import tempfile
+import logging
+
+try:
+    from security_utils import compute_file_hash, verify_file_integrity, SecurityError
+except ImportError:
+    from src.security_utils import compute_file_hash, verify_file_integrity, SecurityError
 
 
 class UpdateManager:
@@ -29,16 +36,19 @@ class UpdateManager:
         self.current_version = current_version
         self.app_name = app_name
         self.update_available = False
-        self.new_version = None
-        self.download_url = None
+        self.new_version: Optional[str] = None
+        self.download_url: Optional[str] = None
         self.release_notes = ""
+        self.expected_sha256: Optional[str] = None
         
         # GitHub raw content URL for version info
         # Change this to your GitHub repo
         self.version_check_url = (
-            "https://raw.githubusercontent.com/mpriester8/SanitizeV-releases-main/"
+            "https://raw.githubusercontent.com/mpriester8/SanitizeV/"
             "main/version.json"
         )
+        # Logger
+        self.logger = logging.getLogger(__name__)
         
     def version_tuple(self, version: str) -> tuple:
         """Convert version string to tuple for comparison."""
@@ -70,33 +80,39 @@ class UpdateManager:
             True if an update is available
         """
         try:
-            print(f"Checking for updates at: {self.version_check_url}")
+            self.logger.info("Checking for updates at: %s", self.version_check_url)
             with urllib.request.urlopen(self.version_check_url, timeout=timeout) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 
             new_version = data.get('version')
             self.download_url = data.get('download_url')
             self.release_notes = data.get('release_notes', "")
+            self.expected_sha256 = data.get('sha256')  # SECURITY: Get expected hash
             
-            print(f"Remote version: {new_version}")
-            print(f"Current version: {self.current_version}")
+            # Security: Require SHA-256 hash for verification
+            if not self.expected_sha256:
+                self.logger.warning("Update available but no SHA-256 hash provided - SECURITY RISK")
+                # Still set update_available but log the security concern
+            
+            self.logger.info("Remote version: %s", new_version)
+            self.logger.info("Current version: %s", self.current_version)
             
             if new_version and self.is_newer_version(new_version):
                 self.new_version = new_version
                 self.update_available = True
-                print("Update available!")
+                self.logger.info("Update available: %s", new_version)
                 return True
             else:
-                print("No update available.")
+                self.logger.info("No update available.")
                 
         except urllib.error.URLError as e:
-            print(f"URL Error - Could not connect to update server: {e}")
+            self.logger.warning("URL Error - Could not connect to update server: %s", e)
         except json.JSONDecodeError as e:
-            print(f"JSON Error - Invalid response format: {e}")
+            self.logger.warning("JSON Error - Invalid response format: %s", e)
         except KeyError as e:
-            print(f"Key Error - Missing field in response: {e}")
-        except Exception as e:
-            print(f"Unexpected error during update check: {e}")
+            self.logger.warning("Key Error - Missing field in response: %s", e)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception("Unexpected error during update check: %s", e)
         
         return False
     
@@ -122,191 +138,112 @@ class UpdateManager:
     
     def download_update(
         self,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
-        timeout: int = 60
+        progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> Optional[str]:
         """
-        Download the update EXE to temp location with timeout and validation.
-
+        Download the update EXE with integrity verification.
+        
         Args:
             progress_callback: Function called with (downloaded, total) bytes
-            timeout: Download timeout in seconds (default 60)
-
+            
         Returns:
             Path to downloaded file or None if failed
+            
+        Raises:
+            SecurityError: If integrity check fails
         """
         if not self.download_url:
-            print("No download URL available")
+            self.logger.warning("No download URL available")
             return None
-
+        
         try:
-            # Get the current executable directory
-            if getattr(sys, 'frozen', False):
-                current_exe_dir = Path(sys.executable).parent
-            else:
-                current_exe_dir = Path.cwd()
-
-            exe_name = f"Sanitize_V_v{self.new_version}_new.exe"
-            download_path = current_exe_dir / exe_name
-
-            print(f"Downloading update to {download_path}...")
-
-            # Use urlopen with timeout instead of urlretrieve for better control
-            request = urllib.request.Request(
+            # Create temp directory for download with secure naming
+            temp_root = os.getenv('TEMP') or tempfile.gettempdir()
+            # Use a random suffix to prevent symlink attacks
+            import secrets
+            random_suffix = secrets.token_hex(8)
+            temp_dir = Path(temp_root) / f'SanitizeV_Update_{random_suffix}'
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            exe_name = f"Sanitize_V_v{self.new_version}.exe"
+            download_path = temp_dir / exe_name
+            
+            self.logger.info("Downloading update to %s...", download_path)
+            
+            def download_progress(block_num: int, block_size: int, total_size: int) -> None:
+                downloaded = block_num * block_size
+                if progress_callback:
+                    progress_callback(min(downloaded, total_size), total_size)
+            
+            urllib.request.urlretrieve(
                 self.download_url,
-                headers={'User-Agent': f'{self.app_name} Updater'}
+                download_path,
+                reporthook=download_progress
             )
 
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                total_size = int(response.headers.get('Content-Length', 0))
-                downloaded = 0
-                chunk_size = 8192
+            # SECURITY: Verify file integrity if SHA-256 was provided
+            if self.expected_sha256:
+                self.logger.info("Verifying download integrity...")
+                if not verify_file_integrity(download_path, self.expected_sha256):
+                    self.logger.error("SECURITY: Downloaded file failed integrity check!")
+                    download_path.unlink()  # Delete compromised file
+                    raise SecurityError(
+                        "Downloaded update failed integrity verification. "
+                        "The file may be corrupted or tampered with."
+                    )
+                self.logger.info("Download integrity verified ✓")
+            else:
+                self.logger.warning(
+                    "SECURITY WARNING: No SHA-256 hash available - cannot verify file integrity"
+                )
 
-                with open(download_path, 'wb') as out_file:
-                    while True:
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-                        out_file.write(chunk)
-                        downloaded += len(chunk)
-                        if progress_callback and total_size > 0:
-                            progress_callback(downloaded, total_size)
-
-            # Validate downloaded file
-            if not download_path.exists():
-                print("Download failed: file does not exist")
-                return None
-
-            file_size = download_path.stat().st_size
-
-            # Check minimum size (exe should be at least 1MB typically)
-            min_size = 1 * 1024 * 1024  # 1 MB
-            if file_size < min_size:
-                print(f"Download failed: file too small ({file_size} bytes, expected at least {min_size})")
-                try:
-                    download_path.unlink()
-                except:
-                    pass
-                return None
-
-            # If we got Content-Length, verify it matches
-            if total_size > 0 and file_size != total_size:
-                print(f"Download failed: size mismatch (got {file_size}, expected {total_size})")
-                try:
-                    download_path.unlink()
-                except:
-                    pass
-                return None
-
-            # Verify it's a valid Windows PE executable (starts with MZ)
-            try:
-                with open(download_path, 'rb') as f:
-                    header = f.read(2)
-                    if header != b'MZ':
-                        print(f"Download failed: not a valid Windows executable (invalid header)")
-                        try:
-                            download_path.unlink()
-                        except:
-                            pass
-                        return None
-            except Exception as e:
-                print(f"Download failed: could not verify executable: {e}")
-                return None
-
-            print(f"Update downloaded successfully: {download_path} ({file_size} bytes)")
+            self.logger.info("Update downloaded successfully: %s", download_path)
             return str(download_path)
-
-        except urllib.error.URLError as e:
-            print(f"Network error during download: {e}")
-            return None
-        except TimeoutError:
-            print(f"Download timed out after {timeout} seconds")
-            return None
-        except Exception as e:
-            print(f"Failed to download update: {e}")
+        
+        except SecurityError:
+            # Re-raise security errors
+            raise
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception("Failed to download update: %s", e)
             return None
     
     def apply_update(self, exe_path: str) -> bool:
         """
-        Apply the downloaded update by replacing the current executable.
-        User will need to restart the application manually.
-
+        Apply the downloaded update by launching the installer.
+        
         Args:
             exe_path: Path to the new EXE file
-
+            
         Returns:
-            True if update was applied successfully
+            True if update installation started
         """
         try:
             if not os.path.exists(exe_path):
-                print(f"EXE not found: {exe_path}")
+                self.logger.error("EXE not found: %s", exe_path)
                 return False
-
+            
             # Get the current executable path
             if getattr(sys, 'frozen', False):
                 current_exe = sys.executable
             else:
                 print("Not running as frozen executable")
                 return False
-
-            # Move current exe to temp directory (hidden from user)
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-            old_exe_name = os.path.basename(current_exe) + ".old"
-            old_exe = os.path.join(temp_dir, old_exe_name)
-
-            # Remove any existing .old file in temp first
-            if os.path.exists(old_exe):
-                try:
-                    os.remove(old_exe)
-                except:
-                    pass
-
-            # Move current exe to temp (this works even while running on Windows)
+            
+            # Start the new version. On Windows prefer startfile for user context.
             try:
-                shutil.move(current_exe, old_exe)
-            except Exception as e:
-                print(f"Failed to move current exe to temp: {e}")
-                return False
+                if sys.platform == 'win32':
+                    os.startfile(exe_path)  # type: ignore[attr-defined]
+                else:
+                    subprocess.Popen([exe_path])
+            except Exception:
+                # Fallback to Popen if startfile fails
+                subprocess.Popen([exe_path])
 
-            # Move new exe to current location
-            try:
-                shutil.move(exe_path, current_exe)
-            except Exception as e:
-                print(f"Failed to move new exe: {e}")
-                # Try to restore old exe
-                try:
-                    shutil.move(old_exe, current_exe)
-                except:
-                    pass
-                return False
-
-            # Schedule cleanup of old exe in temp after this process exits
-            # Use VBS script - runs completely hidden with no window
-            try:
-                vbs_path = os.path.join(temp_dir, "cleanup.vbs")
-                with open(vbs_path, 'w') as f:
-                    f.write('WScript.Sleep 5000\n')
-                    f.write('On Error Resume Next\n')
-                    f.write('Set fso = CreateObject("Scripting.FileSystemObject")\n')
-                    f.write(f'fso.DeleteFile "{old_exe}", True\n')
-                    f.write(f'fso.DeleteFile WScript.ScriptFullName, True\n')
-
-                subprocess.Popen(
-                    ['wscript', '//B', vbs_path],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-                )
-            except:
-                # Will be cleaned up on next startup if this fails
-                pass
-
-            print("Update applied successfully. Please restart the application.")
-            return True
-
-        except Exception as e:
-            print(f"Failed to apply update: {e}")
+            # Exit current application
+            sys.exit(0)
+            
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception("Failed to apply update: %s", e)
             return False
     
     def cleanup_old_versions(self, keep_count: int = 2) -> None:
@@ -317,27 +254,40 @@ class UpdateManager:
             keep_count: Number of recent versions to keep
         """
         try:
-            temp_dir = Path(os.getenv('TEMP')) / 'SanitizeV_Update'
-            if not temp_dir.exists():
+            temp_root = os.getenv('TEMP') or tempfile.gettempdir()
+            temp_root_path = Path(temp_root)
+            
+            # Find all SanitizeV_Update directories (including random-suffixed ones)
+            update_dirs = list(temp_root_path.glob('SanitizeV_Update*'))
+            
+            # Collect all exe files from all update directories
+            exe_files: list[Path] = []
+            for update_dir in update_dirs:
+                if update_dir.is_dir():
+                    exe_files.extend(update_dir.glob('Sanitize_V_v*.exe'))
+            
+            if not exe_files:
                 return
             
-            # Get all exe files sorted by modification time (newest first)
-            exe_files = sorted(
-                temp_dir.glob('Sanitize_V_v*.exe'),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True
-            )
+            # Sort by modification time (newest first)
+            exe_files = sorted(exe_files, key=lambda p: p.stat().st_mtime, reverse=True)
             
-            # Delete old versions
+            # Delete old versions (keep only keep_count most recent)
             for old_file in exe_files[keep_count:]:
                 try:
                     old_file.unlink()
-                    print(f"Cleaned up old version: {old_file.name}")
-                except Exception as e:
-                    print(f"Could not remove {old_file}: {e}")
+                    self.logger.info("Cleaned up old version: %s", old_file.name)
+                    
+                    # Try to remove parent directory if empty
+                    parent = old_file.parent
+                    if parent.is_dir() and not any(parent.iterdir()):
+                        parent.rmdir()
+                        self.logger.info("Removed empty update directory: %s", parent.name)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    self.logger.warning("Could not remove %s: %s", old_file, e)
         
-        except Exception as e:
-            print(f"Cleanup failed: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception("Cleanup failed: %s", e)
 
 
 class UpdateDialog:

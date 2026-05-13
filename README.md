@@ -1,85 +1,202 @@
-# Sanitize V v1.1.5
+# Sanitize V
 
-Sanitize V is a comprehensive utility for managing FiveM/GTA V modifications, configuration files, and cache. It allows users to easily toggle mods, swap graphics configurations, edit settings via a GUI, and clear cache files. The application automatically checks for updates and notifies you when new versions are available, and features a customizable dark mode theme.
+A powerful all-in-one toolkit for FiveM server developers and GTA V modders. Manage your mods, tweak graphics settings, validate server resources, scan commands, scaffold new resources, tail logs, and more — all from one clean interface.
+
+![Version](https://img.shields.io/badge/version-2.1.0-blue)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![Python](https://img.shields.io/badge/python-3.12+-green)
+
+---
+
+## What's New in 2.1
+
+Version 2.1 is a top-to-bottom redesign with eight new tools:
+
+- **Sidebar navigation** with grouped sections — Mods, Graphics & Resources, Server tools
+- **Light & dark themes** with 10 accent color presets, persisted between launches
+- **Command palette** — press **Ctrl+K** to fuzzy-search every tool, action, and snippet
+- **Toast notifications** stack in the bottom-right, dismissing themselves
+- **Mod Profiles** — save and switch named mod loadouts in one click
+- **Manifest auto-fix** — apply safe transforms (fx_version, lua54, dedupe deps, rename to fxmanifest)
+- **Live Log Tailer** — colored severity, regex filtering, resource extraction
+- **server.cfg Editor** — friendly form for common convars with descriptions
+- **Dependency Graph** — find missing deps and circular references between resources
+- **Resource Scaffolder** — generate basic, ESX, or QBCore resources from templates
+- **Locale Checker** — find missing translations and orphaned `_U(...)` references
+- **Backup History** — dated, labelled snapshots with file-level diff between any two
+
+---
 
 ## Features
 
-### 1. Sanitize / Restore
-- **Mod Management**: Easily move `mods` and `plugins` folders from your FiveM application data to a backup directory ("Sanitize") and restore them back ("Restore").
-- **Backup Location**: Customize where your mods and settings are stored when disabled.
+### Sanitize & Restore
+Quickly toggle your mods on and off without deleting anything. When you "sanitize," your `mods` and `plugins` folders get moved to a backup location. Hit restore when you're ready to play modded again.
 
-### 2. Graphics Editor
-- **GUI Editor**: Edit `gta5_settings.xml` without touching raw XML code.
-- **Custom Profiles**: Save your current graphics settings as named profiles and apply them anytime.
-- **Profile Management**: Create, apply, and delete custom graphics profiles directly in the editor.
-- **Safe Deletion**: Profile deletion requires confirmation to prevent accidental loss.
-- **Smart Controls**: Uses Dropdowns for quality settings (Normal, High, Ultra) and Sliders for distance/density settings.
-- **Schema Validation**: Only allows valid values for specific settings (e.g., Shadow Quality, Tessellation, MSAA).
-- **Auto-Logic**: Automatically handles dependent settings (e.g., enabling `Reflection MipBlur` only when Reflection Quality is Very High/Ultra).
-- **Auto-Load**: Automatically loads your current settings on startup.
-- **Interactive Tooltips**: Hover over buttons to see helpful descriptions of their functions.
+- One-click enable/disable for all mods
+- Custom backup location support
+- Preserves folder structure
 
-### 3. Cache Maintenance
-- **One-Click Cleaning**: Clears `cache`, `server-cache`, and `server-cache-priv` folders from the FiveM data directory.
-- **Scheduled Auto-Clear**: Configure cache to clear automatically on app startup or at regular intervals.
-- **Smart Scheduling**: Set cache to auto-clear every N days (1-30 days).
-- **History**: Tracks and displays the last time the cache was cleared.
+### Graphics Editor
+Edit your `gta5_settings.xml` through a friendly GUI instead of digging through XML tags. Dropdowns for quality settings, sliders for distance values—it just works.
 
-### 4. Auto-Update System
-- **Automatic Version Checking**: The application automatically checks for updates when you launch it.
-- **Background Downloads**: Updates are downloaded silently in the background without interrupting your workflow.
-- **One-Click Installation**: When an update is available, simply click "Yes" in the notification dialog to download and install the latest version.
-- **No Source Files Required**: Users only need the executable file from releases—the update system handles everything automatically.
+- Smart controls that match each setting type
+- Validates values before saving (no more broken configs)
+- Auto-loads your current settings on startup
 
-### 5. Dark Mode
-- **Theme Toggle**: Switch between light and dark modes with a single click using the theme button.
-- **Persistent Settings**: Your theme preference is automatically saved and restored on next launch.
-- **Eye Comfort**: Dark mode reduces eye strain in low-light environments with a carefully designed color palette.
-- **Full Coverage**: All UI elements adapt to the selected theme for a consistent experience.
-- **Windows Integration**: Title bar matches your selected theme on Windows 10/11.
-- **Adaptive Tooltips**: Tooltips automatically adjust colors to match the current theme.
+### Manifest Validator
+Point it at your resources folder and it'll check every `fxmanifest.lua` and `__resource.lua` for issues:
 
-### 6. User Experience Enhancements
-- **Interactive Tooltips**: Hover over any button to see helpful descriptions of what it does.
-- **Window Memory**: Application remembers your window size and position between sessions.
-- **Custom Icon**: Distinctive application icon appears in the title bar and taskbar.
-- **Dynamic Banner**: Banner automatically resizes to fit window width while maintaining optimal proportions.
-- **Size Constraints**: Window and banner have intelligent size limits for the best visual experience.
-- **Confirmation Dialogs**: Important actions like profile deletion require confirmation to prevent mistakes.
+- Missing required fields (`fx_version`, `game`)
+- Deprecated Lua 5.1 usage
+- Files referenced but not found on disk
+- Syntax problems in the manifest itself
 
-## How to Run (Source Code)
+### Server Console
+A scratchpad for server commands. Build your RCON commands, copy them to clipboard, and keep track of what you've run.
 
-1.  Ensure Python 3.x is installed.
-2.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  Run the application:
-    ```bash
-    python file_mover.py
-    ```
+### Command Scanner
+Scans your server's Lua files and finds every registered command—native `RegisterCommand`, ESX commands, QBCore commands, even chat suggestions. Shows you:
 
-## How to Build .exe (Windows)
+- Command name (cleaned up, no weird prefixes)
+- What framework it uses
+- What permissions are required (Everyone, Admin, ACE, Job-based)
+- Which file it came from
 
-To create a standalone executable:
+You can export the list to CSV or TXT, and import lists from other sources.
 
-1.  Double-click `build.bat`.
-    *   This script installs `pyinstaller` and `Pillow`.
-    *   It runs PyInstaller with the correct flags to bundle the `banner.png` asset and hide the console.
-2.  The resulting `Sanitize V.exe` will be found in the `dist/` folder.
+### Conflict Detector
+Finds duplicate YMAP files across your resources that would cause in-game conflicts (flickering, Z-fighting, objects loading twice). Flags exact duplicates vs. same-name-different-content situations.
+
+### Developer Utilities
+Quick access to commonly-needed stuff:
+
+- **Quick Commands** — copy frequently-used server commands with one click
+- **Code Snippets** — boilerplate for events, callbacks, threads, etc.
+- **ACE Permission Help** — explains how FiveM's permission system works
+
+### Cache Maintenance
+Clear your FiveM cache folders with one click. Tracks when you last cleared them so you don't forget.
+
+### Mod Profiles
+Save named loadouts (e.g. "SP racing", "FiveM dev", "vanilla") and switch between them with one click. Each profile keeps its own stash on disk and the active loadout is captured automatically before swapping.
+
+### Live Log Tailer
+Tail `server.log` in real time. Each line is colored by severity (error/warning/success/debug), prefixed with the originating resource when one is detected, and filterable by regex.
+
+### server.cfg Editor
+Form-based editor for the common convars — `sv_hostname`, `sv_maxclients`, `onesync`, `rcon_password`, `sv_enforceGameBuild`, and more. The resources panel lets you flip an entry between `ensure` and `stop` without hand-editing the file.
+
+### Dependency Graph
+Builds the full dependency graph for a resources folder: declared dependencies, exports, reverse references, missing deps, and circular dependency detection.
+
+### Resource Scaffolder
+Generates a new resource folder with a complete `fxmanifest.lua` and starter client/server/shared files. Pick from three templates: basic, ESX (registers an ESX command on init), or QBCore.
+
+### Locale Checker
+For each resource with a `locales/` folder, lists translation keys missing in some languages and keys that are referenced in Lua (`_U(...)`, `Lang:t(...)`) but never defined.
+
+### Backup History
+Take dated, labelled snapshots of your mods/plugins folders. Restore any snapshot, or compare two of them to see exactly which files were added, removed, or changed.
+
+---
+
+## Installation
+
+### Option 1: Download the Executable
+Grab the latest `Sanitize V.exe` from the [Releases](https://github.com/mpriester8/SanitizeV/releases) page. No installation needed—just run it.
+
+### Option 2: Run from Source
+
+1. Make sure you have Python 3.12 or newer
+2. Clone the repo:
+   ```bash
+   git clone https://github.com/mpriester8/SanitizeV.git
+   cd SanitizeV
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Run it:
+   ```bash
+   python src/main.py
+   ```
+
+### Building the Executable
+
+Double-click `build.bat` or run:
+```bash
+pyinstaller --onefile --windowed --add-data "assets;assets" --name "Sanitize V" src/main.py
+```
+
+The `.exe` ends up in the `dist/` folder.
+
+---
 
 ## Requirements
-- Windows 10/11
-- Python 3.12+ (for source execution/building)
-- Internet connection (for auto-update checks)
 
-## Getting Updates
+- Windows 10 or 11
+- Python 3.12+ (only if running from source)
+- Internet connection (for update checks)
 
-Sanitize V includes an automatic update system:
+---
 
-1. **Launch the application** - it automatically checks for updates 2 seconds after starting
-2. **Get notified** - if a new version is available, you'll see a notification dialog
-3. **Download & Install** - click "Yes" to download and install the update automatically
-4. **Restart** - the new version will launch immediately after installation
+## Auto-Updates
 
-All releases are available on the [GitHub Releases](https://github.com/mpriester8/SanitizeV/releases) page.
+The app checks for updates automatically when you launch it. If there's a new version:
+
+1. You'll get a notification
+2. Click "Yes" to download and install
+3. The new version launches automatically
+
+No need to manually download anything.
+
+---
+
+## Permissions Legend
+
+When scanning commands, you'll see these permission levels:
+
+| Color | Permission | Meaning |
+|-------|------------|---------|
+| 🟢 Green | Everyone | No restrictions, any player can use it |
+| 🟠 Orange | ACE | Requires server.cfg ACE permission |
+| 🔴 Red | Admin | Requires admin rank in ESX/QBCore |
+| 🔵 Blue | Job | Requires specific job (police, EMS, etc.) |
+| 🟣 Purple | Custom | Resource-specific permission |
+
+Hover over any permission in the app for a detailed explanation.
+
+---
+
+## Troubleshooting
+
+**The app won't start**
+- Make sure you have the Visual C++ Redistributable installed
+- Try running as administrator
+
+**Command scanner misses some commands**
+- It looks for standard patterns (`RegisterCommand`, `ESX.RegisterCommand`, `QBCore.Commands.Add`, `chat:addSuggestion`)
+- Custom command systems might not be detected
+
+**Conflict detector finds too many false positives**
+- It only flags YMAP files now (not manifests or other configs)
+- Exact duplicates are usually safe to have
+
+---
+
+## Contributing
+
+Found a bug? Have an idea? Open an issue or submit a PR. Just keep it clean and test your changes.
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Credits
+
+Built by [mpriester8](https://github.com/mpriester8). Thanks to everyone who's reported bugs and suggested features.

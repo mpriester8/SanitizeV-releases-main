@@ -1,72 +1,102 @@
 # Release Notes
 
-## Version 1.1.5 (December 19, 2025)
+## Version 2.1.0 — Design Overhaul & New Tools
 
-### 🎨 UI/UX Improvements
-- **Interactive Tooltips**: All buttons now have helpful hover tooltips that adapt to light/dark theme
-- **Window Persistence**: Application remembers window size and position between sessions
-- **Custom Application Icon**: Distinctive icon appears in title bar and taskbar
-- **Dynamic Banner**: Banner automatically resizes with window width (max 1200px width, 250px height)
-- **Window Size Constraints**: Maximum window width limited to 1200px to match banner design
-- **Theme-Aware Tooltips**: Tooltips use dark background in dark mode, light background in light mode
+A massive UI refresh plus eight new features for FiveM developers.
 
-### 🔧 Technical Improvements
-- Fixed Windows title bar dark mode theming with improved DWM API calls
-- Improved window handle retrieval using `GetParent()` with fallback methods
-- Proper pointer passing to Windows API using `byref()`
-- Fixed theme application initialization order for consistent dark mode on restart
-- Debounced banner resize events for better performance
-- Banner properly anchored to prevent stretching
+### 🎨 Brand new look
 
-### 🐛 Bug Fixes
-- Resolved banner displaying black bars when window is widened
-- Fixed dark mode not persisting correctly on application reopen
-- Fixed tooltip positioning and display
+- **Sidebar navigation** replaces the top tab bar. Tools are grouped (Mods · Graphics & Resources · Server tools · Other) and labelled with icons, so you can scan the app at a glance.
+- **Centralized theme system** (`src/theme.py`) — every color, radius, padding, and shadow comes from one place. No more ad-hoc `setStyleSheet` scattered across tabs.
+- **Light & dark modes**, with optional auto-detection from system preference. Toggle from Settings or the sidebar footer button.
+- **Accent color picker** — 10 presets (Amber, Orange, Red, Pink, Purple, Indigo, Blue, Cyan, Teal, Green). Theme + accent persist between launches.
+- **Toast notifications** stack in the bottom-right and dismiss themselves. They replaced the old fading status bar for most user feedback.
+- **Card-based layouts** within each page (rounded panels, subtle borders) instead of bare grids.
+
+### ⌨️ Command palette
+
+- Press **Ctrl+K** (or Ctrl+P) anywhere to fuzzy-search every tool, action, and snippet.
+- ↑↓ to navigate, ↵ to run. Includes shortcuts for "Take a backup snapshot now," "Build dependency graph," and one-click snippet copying.
+
+### 🆕 New tools
+
+- **Mod Profiles** — Save named loadouts (e.g., "SP racing", "FiveM dev", "vanilla") and switch between them in one click. Each profile keeps its own stash under `_profiles/`.
+- **Manifest Auto-fix** — Beyond reporting issues, the validator can now apply safe transforms: add missing `fx_version`/`game`, bump older versions to `cerulean`, enable `lua54`, de-dupe dependencies, migrate `__resource.lua` → `fxmanifest.lua`. Every fix takes a timestamped `.bak`.
+- **Live Log Tailer** — Tail `server.log` in real time with color-coded severity (error/warning/success/debug), regex filtering, resource extraction, and auto-scroll.
+- **server.cfg Editor** — Friendly form for the common convars (`sv_hostname`, `sv_maxclients`, `onesync`, etc.) with descriptions, password masking, and a resources panel where you can toggle `ensure` ↔ `stop`.
+- **Dependency Graph** — Parses every resource's manifest, surfaces dependencies, exports, reverse references, missing dep names, and detected cycles.
+- **Resource Scaffolder** — Wizard that generates a new resource folder with a clean `fxmanifest.lua`, `client.lua`, `server.lua`, and `config.lua` for one of three templates: basic, ESX, or QBCore.
+- **Locale Checker** — For each resource with a `locales/` folder, lists missing keys per language plus translation keys referenced in Lua (`_U(...)`, `Lang:t(...)`) but never defined.
+- **Backup History** — Take dated, labelled snapshots of your mods/plugins folders. Restore any snapshot, or diff two of them to see added/removed/changed files.
+
+### 🛠 Quality-of-life
+
+- **Recent paths dropdown** on every folder/file input (▾ button next to the field).
+- **Drag-and-drop** a folder onto any path input to set it.
+- **Markdown export** for command lists and conflict reports (in addition to CSV/TXT).
+- **In-app changelog viewer** on the Settings page reads `RELEASE_NOTES.md` directly.
+- **Home dashboard** with quick-access cards for the most-used tools.
+
+### 🧰 Under the hood
+
+- New modules: `theme.py`, `widgets.py`, `command_palette.py`, `mod_profiles.py`, `manifest_fixer.py`, `log_tailer.py`, `server_cfg.py`, `dependency_graph.py`, `scaffolder.py`, `locale_checker.py`, `backup_history.py`.
+- 28 new unit tests covering the logic of every new module (60 total tests passing).
+- All worker-thread → UI updates now flow through a typed `Signal` to avoid `QMetaObject.invokeMethod` pitfalls.
 
 ---
 
-## Version 1.1.4 (December 19, 2025)
+## Version 2.0.0 — The Big One
 
-### 🎉 New Features
+This is a ground-up rewrite. The old Tkinter UI is gone, replaced with a modern PySide6 (Qt) interface. We've also added a bunch of new tools specifically for FiveM server developers.
 
-**Graphics Profiles**
-- Save current graphics settings from XML as named profiles
-- Quickly apply different graphics configurations with one click
-- Perfect for switching between Performance, Quality, and custom setups
-- Easy profile management integrated into Graphics Editor
-- Profile deletion requires confirmation to prevent accidents
+### 🎨 Completely New Interface
 
-**Scheduled Cache Clearing**
-- Auto-clear cache on app startup (optional)
-- Schedule cache clearing every N days (1-30 days)
-- Configurable auto-clear settings with easy toggle
-- Never worry about cache buildup again
+- **PySide6/Qt Framework** — The entire app has been rebuilt using Qt. It's faster, looks better, and scales properly on high-DPI displays.
+- **Fusion Style** — Clean, modern look that works the same on every Windows machine.
+- **Auto-Fading Status Bar** — Status messages now fade out after a few seconds instead of sitting there forever.
+- **Proper Taskbar Icon** — The app icon now shows correctly in the Windows taskbar (no more generic Python icon).
 
-**Enhanced User Experience**
-- Interactive tooltips on all buttons explaining their functions
-- Tooltips adapt to light/dark theme for consistent appearance
-- Window geometry persistence - remembers size and position between sessions
-- Custom application icon displays in title bar and taskbar
-- Dynamic banner resizing with maximum width (1200px) and height (250px) constraints
-- Window width limited to match banner for cohesive design
+### 🔧 New Tools for FiveM Developers
 
-### 🔧 Improvements
-- Enhanced Graphics Editor with integrated custom profiles
-- Better cache management with scheduling options
-- Streamlined interface with focused feature set
-- Updated to use correct GitHub repository for updates
-- Improved custom input dialogs with better sizing and formatting (550x280, resizable)
-- Fixed Windows title bar dark mode theming with proper DWM API calls
-- Improved window handle retrieval for better Windows 10/11 compatibility
-- Theme application order fixed for proper dark mode persistence
+- **Command Scanner**
+  - Scans your entire server resources folder for registered commands
+  - Detects native `RegisterCommand`, ESX commands, QBCore commands, and chat suggestions
+  - Shows permission requirements (Everyone, Admin, ACE, Job-based) with color coding
+  - Cleans up messy command names (strips leading `/-_0` prefixes automatically)
+  - Export to CSV or TXT, import from external lists
+  - Built-in ACE permission documentation with examples
 
-### 🐛 Bug Fixes
-- Fixed update URL to match SanitizeV-releases-main repository
-- Fixed dialog windows showing buttons properly
-- Better validation for profile data
-- Fixed dark mode not applying correctly on application restart
-- Resolved banner black bars issue with dynamic resizing
-- Fixed theme application initialization order
+- **Manifest Validator**
+  - Validates `fxmanifest.lua` and `__resource.lua` files across your resources
+  - Catches missing required fields, deprecated Lua versions, and file reference errors
+  - Shows results in a clear, organized table
+
+- **Conflict Detector**
+  - Finds duplicate YMAP files that cause in-game conflicts (flickering objects, Z-fighting)
+  - Distinguishes between exact duplicates and same-name-different-content conflicts
+  - Exports detailed reports for fixing issues
+
+- **Developer Utilities**
+  - Quick Commands tab with common server commands (one-click copy)
+  - Code Snippets for events, threads, callbacks, and more
+  - Detailed ACE permission reference with server.cfg examples
+
+### 🛠 Improvements to Existing Features
+
+- **Graphics Editor** — Same functionality, cleaner layout. Dropdowns and sliders now look and feel better.
+- **Server Console** — Simple command scratchpad for building RCON commands.
+- **Cache Cleaner** — Still one-click, still tracks when you last cleared it.
+
+### 🗑 Removed
+
+- **Asset Optimizer** — Removed. It was rarely used and added unnecessary complexity.
+- **Legacy Tkinter UI** — Gone. If PySide6 fails to load, the app will tell you instead of falling back to the old interface.
+
+### 📝 Technical Notes
+
+- Python 3.12+ required
+- Dependencies: PySide6, Pillow, requests, pyinstaller (for building)
+- Windows 10/11 only (Linux/Mac not tested)
 
 ---
 

@@ -50,13 +50,20 @@ class TestLogic(unittest.TestCase):
         def side_effect(path):
             if path.endswith('data'):
                 return True
-            if path.endswith('cache'):
-                return True
-            if path.endswith('server-cache'):
-                return True
+            # Return False for cache folders - our new code doesn't check exists first
             return False
 
         mock_exists.side_effect = side_effect
+        
+        # Mock rmtree to succeed for some, fail for others
+        def rmtree_side_effect(path):
+            # Only succeed for cache and server-cache, raise FileNotFoundError for server-cache-priv
+            if path.endswith('server-cache-priv'):
+                raise FileNotFoundError(f"{path} not found")
+            # Success for other two
+            return None
+        
+        mock_rmtree.side_effect = rmtree_side_effect
         log_mock = MagicMock()
 
         # Execute
@@ -68,7 +75,8 @@ class TestLogic(unittest.TestCase):
         # Assert
         self.assertTrue(success)
         self.assertIsNotNone(timestamp)
-        self.assertEqual(mock_rmtree.call_count, 2)
+        # Our new implementation attempts to delete all 3, but one raises FileNotFoundError
+        self.assertEqual(mock_rmtree.call_count, 3)
 
     @patch('src.logic.os.path.exists')
     @patch('src.logic.shutil.move')
